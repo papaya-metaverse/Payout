@@ -15,13 +15,12 @@ let owner: SignerWithAddress
 describe("AYA", function () {
     const baseSetup = deployments.createFixture(
         async ({ deployments, getNamedAccounts, ethers }, options) => {
+
+            await deployments.fixture(["all"])
     
             owner = (await ethers.getSigners())[0]
-            const factory = await ethers.getContractFactory("AYA", owner.address)
-            const contract = await factory.deploy("Papaya Family", "PFT", ethers.utils.parseEther("285000000"), owner.address)
-            await contract.deployed()
 
-            token = await ethers.getContract("AYA", owner.address)
+            token = await ethers.getContract("AYA", owner)
         }
     )
     const administratorSetup = deployments.createFixture(

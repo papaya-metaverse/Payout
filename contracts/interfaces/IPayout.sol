@@ -9,12 +9,12 @@ interface IPayout {
     }
 
     event RegisterModel(address indexed referrer, address model);
-    event Subscribe(address indexed model, address indexed token, uint256 sum, address indexed user);
+    event SendTokens(address indexed model, address indexed token, uint256 sum, address indexed user);
     event WithdrawModel(address indexed model, address indexed token, uint256 sum);
     event WithdrawPapaya(address indexed token, uint256 sum);
 
     function registerModel(address model, address referrer) external;
-    function subscribe(address model, uint256 sum, address token) external;
+    function sendTokens(address model, uint256 sum, address token) external;
     function withdrawModel(address token) external;
     function withdrawPapaya(address token) external;
     function setAcceptedToken(address _token, bool accepted) external;

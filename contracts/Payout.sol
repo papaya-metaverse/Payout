@@ -41,7 +41,7 @@ contract Payout is IPayout, Context, Ownable {
         emit RegisterModel(referrer, model);
     }
 
-    function subscribe(address model, uint256 sum, address token) external override {
+    function sendTokens(address model, uint256 sum, address token) external override {
         require(isAcceptedToken[token], "Payout: Invalid token");
         ModelInfo storage modelInfo = modelToModelInfo[model];
         require(modelInfo.registrationDate != 0, "Payout: unknown model");
@@ -59,26 +59,27 @@ contract Payout is IPayout, Context, Ownable {
 
         balanceAsModel[token][model] += sum * MODEL_SHARE / FLOOR;
 
-        emit Subscribe(model, token, sum, _msgSender());
+        emit SendTokens(model, token, sum, _msgSender());
     }
 
     function withdrawModel(address token) external override {
-        require(isAcceptedToken[token], "Payout: Invalid token");
-
         uint256 sumToWithdraw = balanceAsModel[token][_msgSender()] + balanceAsReferrer[token][_msgSender()];
+        require(sumToWithdraw != 0, "Payout: balance is 0");
+        
         balanceAsModel[token][_msgSender()] = 0;
         balanceAsReferrer[token][_msgSender()] = 0;
 
-        IERC20(token).safeTransferFrom(address(this), _msgSender(), sumToWithdraw);
+        IERC20(token).safeTransfer(_msgSender(), sumToWithdraw);
 
         emit WithdrawModel(_msgSender(), token, sumToWithdraw);
     }
 
     function withdrawPapaya(address token) external override onlyOwner {
-        require(isAcceptedToken[token], "Payout: Invalid token");
-
         uint256 sumToWithdraw = papayaBalance[token];
-        IERC20(token).safeTransferFrom(address(this), papayaReceiver, sumToWithdraw);
+        require(sumToWithdraw != 0, "Payout: balance is 0");
+
+        papayaBalance[token] = 0;
+        IERC20(token).safeTransfer(papayaReceiver, sumToWithdraw);
 
         emit WithdrawPapaya(token, sumToWithdraw);
     }
