@@ -1,37 +1,35 @@
 import { developmentChains, networkConfig } from "../helper-hardhat-config"
 import hre from 'hardhat';
 import { Address } from 'hardhat-deploy/types';
-import { PFT } from '../typechain-types';
+import { AYA } from '../typechain-types';
 import { expect } from 'chai'
 import { BigNumber, BigNumberish } from "ethers";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 const { deployments, getNamedAccounts, ethers, network } = hre
 
 
-let token: PFT
-let owner: Address
+let token: AYA
+let owner: SignerWithAddress
 
-describe("PFT", function () {
+describe("AYA", function () {
     const baseSetup = deployments.createFixture(
         async ({ deployments, getNamedAccounts, ethers }, options) => {
     
-            await deployments.fixture(["pft"])
-    
-            const { deployer } = await getNamedAccounts()
-            owner = deployer;
-    
-            token = await ethers.getContract("PFT", owner)
+            owner = (await ethers.getSigners())[0]
+            const factory = await ethers.getContractFactory("AYA", owner.address)
+            const contract = await factory.deploy("Papaya Family", "PFT", ethers.utils.parseEther("285000000"), owner.address)
+            await contract.deployed()
+
+            token = await ethers.getContract("AYA", owner.address)
         }
     )
     const administratorSetup = deployments.createFixture(
         async ({ deployments, getNamedAccounts, ethers }, options) => {
     
             await baseSetup()
-    
-            const { deployer } = await getNamedAccounts()
-            owner = deployer;
 
-            await token.grantRole(await token.DEFAULT_ADMIN_ROLE(), owner)
+            await token.grantRole(await token.DEFAULT_ADMIN_ROLE(), owner.address)
         }
     )
     describe("constructor", async () => {
@@ -39,14 +37,14 @@ describe("PFT", function () {
             await baseSetup()
             
             const tokenSupply = await token.totalSupply()
-            expect(await token.balanceOf(owner)).to.equal(tokenSupply)
+            expect(await token.balanceOf(owner.address)).to.equal(tokenSupply)
             expect(tokenSupply).to.be.greaterThan(0)
         })
         it("sets admin role to owner", async () => {
             await baseSetup()
                 
             const adminRole = await token.DEFAULT_ADMIN_ROLE()
-            expect(await token.hasRole(adminRole, owner)).to.equal(true)
+            expect(await token.hasRole(adminRole, owner.address)).to.equal(true)
         })
     })
     describe("transferFromBatch", function () {
@@ -58,7 +56,7 @@ describe("PFT", function () {
             const destinations: Address[] = [signers[2].address]
             const values: BigNumberish[] = [1, 2]
 
-            expect(token.transferFromBatch(sources, destinations, values)).to.be.revertedWith("PFT: invalid arguments length")
+            await expect(token.transferFromBatch(sources, destinations, values)).to.be.revertedWith("AYA: invalid arguments length")
         })
     })
     describe("transferBatch", function () {
@@ -69,7 +67,7 @@ describe("PFT", function () {
             const destinations: Address[] = [signers[2].address, signers[3].address, signers[4].address]
             const values: BigNumberish[] = [1, 2]
 
-            await expect(token.transferBatch(destinations, values)).to.be.revertedWith("PFT: invalid arguments length")
+            await expect(token.transferBatch(destinations, values)).to.be.revertedWith("AYA: invalid arguments length")
         })
     })
     describe("blacklist", function () {
@@ -110,7 +108,7 @@ describe("PFT", function () {
             await token.transfer(acc.address, 1234)
             expect(await token.balanceOf(acc.address)).to.be.greaterThan(0)
 
-            await expect(token.connect(acc).transfer(owner, 1234)).to.be.revertedWith("ERC20Blacklist: address blacklisted")
+            await expect(token.connect(acc).transfer(owner.address, 1234)).to.be.revertedWith("ERC20Blacklist: address blacklisted")
         })
     })
 })
