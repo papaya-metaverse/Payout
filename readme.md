@@ -1,6 +1,7 @@
 [Site](https://my.papaya.land)
 [Twitter](https://twitter.com/papaya_meta)
 [Medium](https://medium.com/@papaya-land)
+[Instagram](https://instagram.com/papaya.land)
 <img width="1377" alt="Снимок экрана 2023-02-11 в 21 09 27" src="https://user-images.githubusercontent.com/79079180/218260172-136a16b2-faf3-48da-88fa-bbb2d9229522.png">
 
 # Table of Contents
@@ -10,7 +11,13 @@
 
 ## Token contract
 1. Standard ERC20Permit implementation which allows off-chain approve of tokens.
-2. Run ```yarn install && yarn hardhat test --grep "AYA"``` to pass tests on AYA.sol
+2. To pass tests on AYA.sol run
+3. 
+```
+$ git clone https://github.com/papaya-metaverse/blockchain.git
+$ cd blockchain
+$ yarn install && yarn hardhat test --grep "AYA"
+```
 
 ## Tokenomics
 <img width="1378" alt="Снимок экрана 2023-02-11 в 21 09 52" src="https://user-images.githubusercontent.com/79079180/218261499-b5b02981-157e-41b8-89ae-a035a2153833.png">
