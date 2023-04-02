@@ -31,6 +31,7 @@ contract SharedWallet is Context, ReentrancyGuard, ISharedWallet {
     function addShare(
         address _project, 
         address _receiver,
+        address _token,
         uint256 _percent
     ) external onlyAdmin {
         require(
@@ -39,12 +40,13 @@ contract SharedWallet is Context, ReentrancyGuard, ISharedWallet {
         );
 
         projectInfo[_project].engagedPercent += _percent;
+        projectInfo[_project].token = _token;
 
         Share storage share = shares[_project][_receiver];
 
         share.percent = _percent;
 
-        emit AddShare(_project, _receiver, _percent);
+        emit AddShare(_project, _receiver, _token, _percent);
     }
 
     function withdraw(address _project, address _receiver) external nonReentrant {

@@ -16,6 +16,7 @@ interface ISharedWallet {
     event AddShare(
         address indexed project,
         address indexed receiver,
+        address indexed token,
         uint256 percent
     );
     event Withdraw(
@@ -33,6 +34,7 @@ interface ISharedWallet {
     function addShare(
         address _project, 
         address _receiver,
+        address _token,
         uint256 _percent
     ) external;
     function withdraw(address _project, address receiver) external;
