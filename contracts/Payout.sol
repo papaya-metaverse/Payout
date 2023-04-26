@@ -2,12 +2,14 @@
 pragma solidity ^0.8.10;
 
 import "./interfaces/IPayout.sol";
+import "./interfaces/ISubscribeVoucher.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract Payout is IPayout, Context, Ownable {
+contract Payout is IPayout, Context, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 public constant FLOOR = 10000;
@@ -25,9 +27,19 @@ contract Payout is IPayout, Context, Ownable {
     // token -> sum
     mapping(address => uint256) private papayaBalance;
     address immutable public papayaReceiver;
+    address immutable private papayaSigner;
+    ISubscribeVoucher public subscribeVoucher;
 
-    constructor(address _papayaReceiver) {
+    constructor(
+        address _papayaReceiver,
+        address _papayaSigner,
+        address _subscribeVoucher
+    )
+    {
         papayaReceiver = _papayaReceiver;
+        papayaSigner = _papayaSigner;
+        subscribeVoucher = ISubscribeVoucher(_subscribeVoucher);
+
     }
 
     function registerModel(address model, address referrer) external override onlyOwner {
@@ -41,35 +53,37 @@ contract Payout is IPayout, Context, Ownable {
         emit RegisterModel(referrer, model);
     }
 
-    function sendTokens(address model, uint256 sum, address token) external override {
-        require(isAcceptedToken[token], "Payout: Invalid token");
-        ModelInfo storage modelInfo = modelToModelInfo[model];
+    function subscribe(ISubscribeVoucher.Voucher calldata voucher) external override {
+        address signer = subscribeVoucher.verify(voucher);
+        require(signer == papayaSigner, "Payout: Signature invalid or unauthorized");
+        require(isAcceptedToken[voucher.token], "Payout: Invalid token");
+        ModelInfo storage modelInfo = modelToModelInfo[voucher.model];
         require(modelInfo.registrationDate != 0, "Payout: unknown model");
 
-        IERC20(token).safeTransferFrom(_msgSender(), address(this), sum);
+        IERC20(voucher.token).safeTransferFrom(_msgSender(), address(this), voucher.sum);
 
         if (modelInfo.referrer != address(0) && block.timestamp <= modelInfo.registrationDate + 365 days) {
-            address referrer = modelToModelInfo[model].referrer;
+            address referrer = modelToModelInfo[voucher.model].referrer;
 
-            balanceAsReferrer[token][referrer] += sum * REFERRER_SHARE / FLOOR;
-            papayaBalance[token] += sum * (PAPAYA_SHARE - REFERRER_SHARE) / FLOOR;
+            balanceAsReferrer[voucher.token][referrer] += voucher.sum * REFERRER_SHARE / FLOOR;
+            papayaBalance[voucher.token] += voucher.sum * (PAPAYA_SHARE - REFERRER_SHARE) / FLOOR;
         } else {
-            papayaBalance[token] += sum * PAPAYA_SHARE / FLOOR;
+            papayaBalance[voucher.token] += voucher.sum * PAPAYA_SHARE / FLOOR;
         }
 
-        balanceAsModel[token][model] += sum * MODEL_SHARE / FLOOR;
+        balanceAsModel[voucher.token][voucher.model] += voucher.sum * MODEL_SHARE / FLOOR;
 
-        emit SendTokens(model, token, sum, _msgSender());
+        emit Subscribe(voucher.model, voucher.model_id, voucher.user_id, voucher.token, voucher.sum, _msgSender());
     }
 
-    function withdrawModel(address token) external override {
+    function withdrawModel(address token) external override nonReentrant {
         uint256 sumToWithdraw = balanceAsModel[token][_msgSender()] + balanceAsReferrer[token][_msgSender()];
         require(sumToWithdraw != 0, "Payout: balance is 0");
-        
-        balanceAsModel[token][_msgSender()] = 0;
-        balanceAsReferrer[token][_msgSender()] = 0;
 
         IERC20(token).safeTransfer(_msgSender(), sumToWithdraw);
+
+        balanceAsModel[token][_msgSender()] = 0;
+        balanceAsReferrer[token][_msgSender()] = 0;
 
         emit WithdrawModel(_msgSender(), token, sumToWithdraw);
     }
