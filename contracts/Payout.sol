@@ -1,124 +1,121 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import "./interfaces/IPayout.sol";
-import "./interfaces/ISubscribeVoucher.sol";
-import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract Payout is IPayout, Context, Ownable, ReentrancyGuard {
+import "./abstract/VoucherVerifier.sol";
+import "./PaymentChannel.sol";
+
+contract Payout is Ownable, VoucherVerifier, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    uint256 public constant FLOOR = 10000;
-    uint256 public constant MODEL_SHARE = 8000;
-    uint256 public constant REFERRER_SHARE = 500;
-    uint256 public constant PAPAYA_SHARE = 2000;
+    struct withdrawDetails {
+        address user;
+        address[] tokens;
+        uint256[] amounts;
+    }
+
+    struct paymentsDetails {
+        address creator;
+        address refferer;
+        address token;
+        uint256 creatorPayment;
+        uint256 reffererPayment;
+    }
+
+    event CreateChannel(address indexed user, address channel);
+
+    //tokens => status
     mapping(address => bool) private isAcceptedToken;
+    //user => channel
+    mapping(address => Channel) public userChannel;
+    //token => balance
+    mapping(address => uint256) public serviceBalance;
 
-    mapping(address => ModelInfo) private modelToModelInfo;
+    address public serviceWallet;
 
-    // token -> model -> sum
-    mapping(address => mapping(address => uint256)) private balanceAsModel;
-    // token -> referrer -> sum
-    mapping(address => mapping(address => uint256)) private balanceAsReferrer;
-    // token -> sum
-    mapping(address => uint256) private papayaBalance;
     address immutable public papayaReceiver;
     address immutable private papayaSigner;
-    ISubscribeVoucher public subscribeVoucher;
 
-    constructor(
-        address _papayaReceiver,
-        address _papayaSigner,
-        address _subscribeVoucher
-    )
-    {
+    constructor(address _serviceWallet, address _papayaReceiver, address _papayaSigner){
+        serviceWallet = _serviceWallet;
+
         papayaReceiver = _papayaReceiver;
         papayaSigner = _papayaSigner;
-        subscribeVoucher = ISubscribeVoucher(_subscribeVoucher);
-
     }
 
-    function registerModel(address model, address referrer) external override onlyOwner {
-        require(modelToModelInfo[model].registrationDate == 0, "Payout: already registered");
-        if(referrer != address(0)) {
-            require(modelToModelInfo[referrer].registrationDate != 0, "Payout: invalid referrer");
-        }
+    function fastPayment(VoucherVerifier.Voucher calldata voucher) public nonReentrant {
+        _checkSignature(voucher);
 
-        modelToModelInfo[model] = ModelInfo(referrer, uint96(block.timestamp));
-
-        emit RegisterModel(referrer, model);
-    }
-
-    function subscribe(ISubscribeVoucher.Voucher calldata voucher) external override {
-        address signer = subscribeVoucher.verify(voucher);
-        require(signer == papayaSigner, "Payout: Signature invalid or unauthorized");
-        require(isAcceptedToken[voucher.token], "Payout: Invalid token");
-        ModelInfo storage modelInfo = modelToModelInfo[voucher.model];
-        require(modelInfo.registrationDate != 0, "Payout: unknown model");
-
-        IERC20(voucher.token).safeTransferFrom(_msgSender(), address(this), voucher.sum);
-
-        if (modelInfo.referrer != address(0) && block.timestamp <= modelInfo.registrationDate + 365 days) {
-            address referrer = modelToModelInfo[voucher.model].referrer;
-
-            balanceAsReferrer[voucher.token][referrer] += voucher.sum * REFERRER_SHARE / FLOOR;
-            papayaBalance[voucher.token] += voucher.sum * (PAPAYA_SHARE - REFERRER_SHARE) / FLOOR;
+        if(voucher.creator == address(0)) {
+            _sendTokens(voucher.token, voucher.refferal, voucher.sum);
         } else {
-            papayaBalance[voucher.token] += voucher.sum * PAPAYA_SHARE / FLOOR;
+            _sendTokens(voucher.token, voucher.creator, voucher.sum);
         }
-
-        balanceAsModel[voucher.token][voucher.model] += voucher.sum * MODEL_SHARE / FLOOR;
-
-        emit Subscribe(voucher.model, voucher.model_id, voucher.user_id, voucher.token, voucher.sum, _msgSender());
     }
 
-    function withdrawModel(address token) external override nonReentrant {
-        uint256 sumToWithdraw = balanceAsModel[token][_msgSender()] + balanceAsReferrer[token][_msgSender()];
-        require(sumToWithdraw != 0, "Payout: balance is 0");
+    //dev: lenghts of tokens and amounts MUST be equal
+    function withdrawChannels(withdrawDetails[] calldata wDetails) public onlyOwner {
+        for(uint i; i < wDetails.length; i++) {
+            Channel chan = userChannel[wDetails[i].user];
+            require(address(chan) != address(0), "Payout: Wrong channel");
 
-        IERC20(token).safeTransfer(_msgSender(), sumToWithdraw);
-
-        balanceAsModel[token][_msgSender()] = 0;
-        balanceAsReferrer[token][_msgSender()] = 0;
-
-        emit WithdrawModel(_msgSender(), token, sumToWithdraw);
+            chan.withdraw(wDetails[i].tokens, wDetails[i].amounts);
+        }
     }
 
-    function withdrawPapaya(address token) external override onlyOwner {
-        uint256 sumToWithdraw = papayaBalance[token];
-        require(sumToWithdraw != 0, "Payout: balance is 0");
-
-        papayaBalance[token] = 0;
-        IERC20(token).safeTransfer(papayaReceiver, sumToWithdraw);
-
-        emit WithdrawPapaya(token, sumToWithdraw);
+    function proceedPayments(paymentsDetails[] calldata pDetails) public onlyOwner {
+        for(uint i; i < pDetails.length; i++) {
+            IERC20(pDetails[i].token).safeTransfer(pDetails[i].creator, pDetails[i].creatorPayment);
+            if(pDetails[i].refferer != address(0)){
+                IERC20(pDetails[i].token).safeTransfer(pDetails[i].refferer, pDetails[i].reffererPayment);
+            }
+        }
     }
 
-    function setAcceptedToken(address _token, bool accepted) external override onlyOwner {
-        isAcceptedToken[_token] = accepted;
+    //dev: lenghts of tokens and amounts MUST be equal
+    function withdrawService(address[] calldata tokens, uint256[] calldata amounts) public onlyOwner {
+        for(uint i; i < tokens.length; i++) {
+            _sendTokens(tokens[i], serviceWallet, amounts[i]);
+        }
     }
 
-    function getIsAcceptedToken(address token) external override view returns(bool) {
+    //dev: salt is a user address
+    function createChannel(bytes32 salt, address payout, address user) public onlyOwner {
+        Channel chan = new Channel{salt: salt}(payout, user);
+
+        userChannel[user] = chan;
+
+        emit CreateChannel(user, address(chan));
+    }
+
+    function setServiceWallet(address _serviceWallet) public onlyOwner {
+        serviceWallet = _serviceWallet;
+    }
+
+    function setTokenStatus(address[] calldata _tokens, bool status) public onlyOwner {
+        for(uint i; i < _tokens.length; i++) {        
+            isAcceptedToken[_tokens[i]] = status;
+        }
+    }
+
+    function getTokenStatus(address token) public view returns(bool) {
         return isAcceptedToken[token];
     }
 
-    function getModelInfo(address model) external override view returns(ModelInfo memory) {
-        return modelToModelInfo[model];
+    function _checkSignature(VoucherVerifier.Voucher calldata voucher) internal {
+        address signer = verify(voucher);
+        require(signer == papayaSigner, "Payout: Signature invalid or unauthorized");
     }
 
-    function getBalanceOfModel(address token, address model) external override view returns(uint256) {
-        return balanceAsModel[token][model];
-    }
-
-    function getBalanceOfReferrer(address token, address referrer) external override view returns(uint256) {
-        return balanceAsReferrer[token][referrer];
-    }
-
-    function getPapayaBalance(address token) external override view returns(uint256) {
-        return papayaBalance[token];
+    function _sendTokens(address token, address recipient, uint256 amount) internal {
+        if(token == address(0)) {
+            payable(recipient).call{value: amount}("");
+        } else {
+            IERC20(token).safeTransfer(recipient, amount);
+        }
     }
 }
