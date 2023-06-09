@@ -89,7 +89,11 @@ contract Channel is AccessControl, ReentrancyGuard {
         PaymentSchedule memory schedule = schedules[__scheduleId];
 
         if(schedule.endTime > 0 && block.timestamp >= schedule.endTime) {
-            IERC20(schedule.token).safeTransfer(_user, schedule.amount);
+            if(schedule.token == address(0)) {
+                payable(_user).call{value: schedule.amount}("");
+            } else { 
+                IERC20(schedule.token).safeTransfer(_user, schedule.amount);
+            }
         }
 
         emit ChargebackBySchedule(msg.sender, schedule.token, schedule.amount, _scheduleId);
