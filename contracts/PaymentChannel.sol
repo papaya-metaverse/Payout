@@ -2,107 +2,91 @@
 pragma solidity ^0.8.10;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "./Payout.sol";
+import "./interfaces/IPayout.sol";
+import "./interfaces/IPaymentChannel.sol";
 
-contract Channel is AccessControl, ReentrancyGuard {
+contract PaymentChannel is AccessControl, IPaymentChannel {
     using SafeERC20 for IERC20;
 
-    uint256 public constant TIMEOUT = 1 days;
+    uint48 public constant TIMEOUT = uint48(1 days);
 
     bytes32 public constant PAYOUT= keccak256("PAYOUT_ROLE");
     bytes32 public constant USER = keccak256("USER_ROLE");
 
-    struct PaymentSchedule {
-        uint256 initTime;
-        uint256 endTime;
-        address token;
-        uint256 amount;
-    }
-
-    event Withdraw(address[] token, uint256[] amount);
-    event CreateSchedule(address indexed sender, address token, uint256 amount, uint256 scheduleStart);
-    event ChargebackBySchedule(address indexed sender, address token, uint256 amount, uint256 _scheduleId);
-    event RevertSchedule(address token, uint256 amount);
-    event EmergencyChargeback(address indexed sender, address token, uint256 amount);
-
-    error TransferFailed(bytes32, uint256, bytes32);
-    error InsFunds(bytes32, address);
-
     address immutable _payout;
     address public _user;
 
-    uint256 public _scheduleId;
-
     //_scheduleId => Schedule
-    mapping(uint256 => PaymentSchedule) public schedules;
+    PaymentSchedule public crtSchedule;
 
-    constructor(address payout, address user) {
-        _payout = payout;
-        _user = user;
-
-        grantRole(PAYOUT, payout);
-        grantRole(USER, user);
+    constructor() {
+        _payout = msg.sender; 
+        _user = IPayout(msg.sender).parameters();
+        
+        _grantRole(PAYOUT, _payout);
+        _grantRole(USER, _user);
     }
 
-    function withdraw( 
+    function withdraw(
         address[] calldata token, 
         uint256[] calldata amount
-        ) public onlyRole(PAYOUT) {
+    ) external override onlyRole(PAYOUT) {
         require(token.length == amount.length, "Channel: Wrong argument size");
 
         for(uint i; i < token.length; i++) {
             _checkSchedule(token[i], amount[i]);
 
-            if(token[i] == address(0) && address(this).balance >= amount[i]) {
-                payable(_payout).call{value: amount[i]}("");
+            if(token[i] == address(0)) {
+                if(address(this).balance >= amount[i]) { 
+                    payable(_payout).call{value: amount[i]}("");
+                }
+
+                revert InsFunds("Channel: Can`t take funds from ", token[i]);
             } else if(IERC20(token[i]).balanceOf(address(this)) >= amount[i]) {
                 IERC20(token[i]).safeTransfer(_payout, amount[i]);
             } else {
                 revert InsFunds("Channel: Can`t take funds from ", token[i]);
             }
         }
-        emit Withdraw(token, amount);
     }
 
-    function createSchedule(address token, uint256 amount) public onlyRole(USER) {
-        require(Payout(_payout).getTokenStatus(token), "Channel: Wrong token, use emergencyChargeback");
-
-        PaymentSchedule storage schedule = schedules[_scheduleId];
+    function createSchedule(
+        address token, 
+        uint256 amount
+    ) external override onlyRole(USER) {
+        require(IPayout(_payout).getTokenStatus(token), "Channel: Wrong token, use emergencyChargeback");
        
-        if(schedule.initTime != 0 && block.timestamp - schedule.endTime < TIMEOUT) {
+        if(crtSchedule.initTime != 0 && block.timestamp - crtSchedule.endTime < TIMEOUT) {
             revert("Channel: Can`t start new Schedule, before previous end");
         }
         
-        schedule.token = token;
-        schedule.amount = amount;
-        schedule.initTime = block.timestamp;
-        schedule.endTime = block.timestamp + TIMEOUT;
+        crtSchedule.token = token;
+        crtSchedule.amount = amount;
+        crtSchedule.initTime = uint48(block.timestamp);
+        crtSchedule.endTime = uint48(block.timestamp) + TIMEOUT;
 
         emit CreateSchedule(msg.sender, token, amount, block.timestamp);   
     }
 
-    function withdrawBySchedule(uint256 __scheduleId) public nonReentrant {
-        PaymentSchedule memory schedule = schedules[__scheduleId];
+    function withdrawBySchedule() public {
+        if(crtSchedule.initTime > 0 && (block.timestamp - crtSchedule.endTime) <= TIMEOUT) {
+            crtSchedule.initTime = 0;
 
-        if(schedule.endTime > 0 && block.timestamp >= schedule.endTime) {
-            if(schedule.token == address(0)) {
-                payable(_user).call{value: schedule.amount}("");
+            if(crtSchedule.token == address(0)) {
+                payable(_user).call{value: crtSchedule.amount}("");
             } else { 
-                IERC20(schedule.token).safeTransfer(_user, schedule.amount);
+                IERC20(crtSchedule.token).safeTransfer(_user, crtSchedule.amount);
             }
-        }
 
-        emit ChargebackBySchedule(msg.sender, schedule.token, schedule.amount, _scheduleId);
-   
-        _scheduleId++;
+            emit ChargebackBySchedule(msg.sender, crtSchedule.token, crtSchedule.amount);
+        }
     }
 
-    function emergencyChargeback(address token, uint256 amount) public nonReentrant {
-        require(Payout(_payout).getTokenStatus(token) == false, "Channel: Wrong token, use schedule withdraw"); 
+    function emergencyChargeback(address token, uint256 amount) public {
+        require(IPayout(_payout).getTokenStatus(token) == false, "Channel: Wrong token, use schedule withdraw"); 
         require(IERC20(token).balanceOf(address(this)) >= amount, "Channel: Insufficient balance");
         
         IERC20(token).safeTransfer(_user, amount);
@@ -118,16 +102,16 @@ contract Channel is AccessControl, ReentrancyGuard {
         }
     }
 
-    function changeUserWallet(address user) public onlyRole(PAYOUT) {
+    function changeUserWallet(address user) external override onlyRole(PAYOUT) {
         _user = user;
 
         _grantRole(USER, user);
     }
 
     function _checkSchedule( address token, uint256 amount) internal {
-        if(schedules[_scheduleId].token == token) {
-            if(balanceOf(token) - amount < schedules[_scheduleId].amount) {
-                delete schedules[_scheduleId];
+        if(crtSchedule.token == token && crtSchedule.initTime != 0) {
+            if(balanceOf(token) - amount < crtSchedule.amount) {
+                crtSchedule.initTime = 0;
 
                 emit RevertSchedule(token, amount);
             }

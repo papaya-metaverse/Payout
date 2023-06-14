@@ -7,38 +7,29 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "./abstract/VoucherVerifier.sol";
+import "./interfaces/IPayout.sol";
+
+import "./interfaces/IPaymentChannel.sol";
 import "./PaymentChannel.sol";
 
-contract Payout is Ownable, VoucherVerifier, ReentrancyGuard {
+contract Payout is Ownable, ReentrancyGuard, VoucherVerifier, IPayout {
     using SafeERC20 for IERC20;
 
-    struct withdrawDetails {
+    struct Parameters {
         address user;
-        address[] tokens;
-        uint256[] amounts;
     }
-
-    struct paymentsDetails {
-        address creator;
-        address refferer;
-        address token;
-        uint256 creatorPayment;
-        uint256 reffererPayment;
-    }
-
-    event CreateChannel(address indexed user, address channel);
 
     //tokens => status
     mapping(address => bool) private isAcceptedToken;
     //user => channel
-    mapping(address => Channel) public userChannel;
-    //token => balance
-    mapping(address => uint256) public serviceBalance;
+    mapping(address => address) public userChannels;
 
     address public serviceWallet;
 
     address immutable public papayaReceiver;
     address immutable private papayaSigner;
+
+    Parameters public override parameters;
 
     constructor(address _serviceWallet, address _papayaReceiver, address _papayaSigner){
         serviceWallet = _serviceWallet;
@@ -58,20 +49,19 @@ contract Payout is Ownable, VoucherVerifier, ReentrancyGuard {
     }
 
     //dev: lenghts of tokens and amounts MUST be equal
-    function withdrawChannels(withdrawDetails[] calldata wDetails) public onlyOwner {
-        for(uint i; i < wDetails.length; i++) {
-            Channel chan = userChannel[wDetails[i].user];
-            require(address(chan) != address(0), "Payout: Wrong channel");
+    function withdrawChannels(WithdrawDetails[] calldata WDetails) public onlyOwner {
+        for(uint i; i < WDetails.length; i++) {
+            require(userChannels[WDetails[i].user] != address(0), "Payout: Wrong channel");
 
-            chan.withdraw(wDetails[i].tokens, wDetails[i].amounts);
+            IPaymentChannel(userChannels[WDetails[i].user]).withdraw(WDetails[i].tokens, WDetails[i].amounts);
         }
     }
 
-    function proceedPayments(paymentsDetails[] calldata pDetails) public onlyOwner {
-        for(uint i; i < pDetails.length; i++) {
-            IERC20(pDetails[i].token).safeTransfer(pDetails[i].creator, pDetails[i].creatorPayment);
-            if(pDetails[i].refferer != address(0)){
-                IERC20(pDetails[i].token).safeTransfer(pDetails[i].refferer, pDetails[i].reffererPayment);
+    function proceedPayments(PaymentsDetails[] calldata PDetails) public onlyOwner {
+        for(uint i; i < PDetails.length; i++) {
+            IERC20(PDetails[i].token).safeTransfer(PDetails[i].creator, PDetails[i].creatorPayment);
+            if(PDetails[i].refferer != address(0)){
+                IERC20(PDetails[i].token).safeTransfer(PDetails[i].refferer, PDetails[i].reffererPayment);
             }
         }
     }
@@ -84,12 +74,21 @@ contract Payout is Ownable, VoucherVerifier, ReentrancyGuard {
     }
 
     //dev: salt is a user address
-    function createChannel(bytes32 salt, address payout, address user) public onlyOwner {
-        Channel chan = new Channel{salt: salt}(payout, user);
+    function createChannel(bytes32 salt, address user) public onlyOwner { 
+        parameters = Parameters({user: user});
+        
+        address chan = address(new PaymentChannel{salt: salt}());
+        userChannels[user] = chan;
 
-        userChannel[user] = chan;
+        delete parameters;
 
-        emit CreateChannel(user, address(chan));
+        emit CreateChannel(user, chan);
+    }
+
+    function updateUserWalletOnChannel(address oldUser, address newUser) public onlyOwner {
+        require(userChannels[oldUser] != address(0), "Payout: Wrong user");
+
+        IPaymentChannel(userChannels[oldUser]).changeUserWallet(newUser);
     }
 
     function setServiceWallet(address _serviceWallet) public onlyOwner {
@@ -102,7 +101,7 @@ contract Payout is Ownable, VoucherVerifier, ReentrancyGuard {
         }
     }
 
-    function getTokenStatus(address token) public view returns(bool) {
+    function getTokenStatus(address token) external override view returns(bool) {
         return isAcceptedToken[token];
     }
 
