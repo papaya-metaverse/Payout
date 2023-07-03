@@ -2,7 +2,6 @@
 pragma solidity ^0.8.10;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -12,7 +11,7 @@ import "./interfaces/IPayout.sol";
 import "./interfaces/IPaymentChannel.sol";
 import "./PaymentChannel.sol";
 
-contract Payout is Ownable, ReentrancyGuard, VoucherVerifier, IPayout {
+contract Payout is Ownable, VoucherVerifier, IPayout {
     using SafeERC20 for IERC20;
 
     struct Parameters {
@@ -26,19 +25,16 @@ contract Payout is Ownable, ReentrancyGuard, VoucherVerifier, IPayout {
 
     address public serviceWallet;
 
-    address immutable public papayaReceiver;
     address immutable private papayaSigner;
 
     Parameters public override parameters;
 
-    constructor(address _serviceWallet, address _papayaReceiver, address _papayaSigner){
+    constructor(address _serviceWallet, address _papayaSigner){
         serviceWallet = _serviceWallet;
-
-        papayaReceiver = _papayaReceiver;
         papayaSigner = _papayaSigner;
     }
 
-    function fastPayment(VoucherVerifier.Voucher calldata voucher) public nonReentrant {
+    function fastPayment(VoucherVerifier.Voucher calldata voucher) public {
         _checkSignature(voucher);
 
         if(voucher.creator == address(0)) {
@@ -112,7 +108,9 @@ contract Payout is Ownable, ReentrancyGuard, VoucherVerifier, IPayout {
 
     function _sendTokens(address token, address recipient, uint256 amount) internal {
         if(token == address(0)) {
-            payable(recipient).call{value: amount}("");
+            (bool success, ) = payable(recipient).call{value: amount}("");
+        
+            require(success, "PaymentChannel: Can`t transfer native token");
         } else {
             IERC20(token).safeTransfer(recipient, amount);
         }

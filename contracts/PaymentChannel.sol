@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "./interfaces/IPayout.sol";
 import "./interfaces/IPaymentChannel.sol";
 
-contract PaymentChannel is AccessControl, IPaymentChannel {
+contract PaymentChannel is Ownable, IPaymentChannel {
     using SafeERC20 for IERC20;
 
     uint48 public constant TIMEOUT = uint48(1 days);
@@ -22,18 +22,20 @@ contract PaymentChannel is AccessControl, IPaymentChannel {
     //_scheduleId => Schedule
     PaymentSchedule public crtSchedule;
 
+    modifier onlyUser() {
+        require(_msgSender() == _user, "Channel: Wrong access");
+        _;
+    }
+
     constructor() {
         _payout = msg.sender; 
         _user = IPayout(msg.sender).parameters();
-        
-        _grantRole(PAYOUT, _payout);
-        _grantRole(USER, _user);
     }
 
     function withdraw(
         address[] calldata token, 
         uint256[] calldata amount
-    ) external override onlyRole(PAYOUT) {
+    ) external override onlyOwner {
         require(token.length == amount.length, "Channel: Wrong argument size");
 
         for(uint i; i < token.length; i++) {
@@ -41,7 +43,9 @@ contract PaymentChannel is AccessControl, IPaymentChannel {
 
             if(token[i] == address(0)) {
                 if(address(this).balance >= amount[i]) { 
-                    payable(_payout).call{value: amount[i]}("");
+                    (bool success, ) = payable(_payout).call{value: amount[i]}("");
+                    
+                    require(success, "PaymentChannel: Can`t transfer native token");
                 }
 
                 revert InsFunds("Channel: Can`t take funds from ", token[i]);
@@ -56,10 +60,10 @@ contract PaymentChannel is AccessControl, IPaymentChannel {
     function createSchedule(
         address token, 
         uint256 amount
-    ) external override onlyRole(USER) {
+    ) external override onlyUser {
         require(IPayout(_payout).getTokenStatus(token), "Channel: Wrong token, use emergencyChargeback");
        
-        if(crtSchedule.initTime != 0 && block.timestamp - crtSchedule.endTime < TIMEOUT) {
+        if(crtSchedule.initTime != 0 && block.timestamp - TIMEOUT < crtSchedule.endTime) {
             revert("Channel: Can`t start new Schedule, before previous end");
         }
         
@@ -76,7 +80,9 @@ contract PaymentChannel is AccessControl, IPaymentChannel {
             crtSchedule.initTime = 0;
 
             if(crtSchedule.token == address(0)) {
-                payable(_user).call{value: crtSchedule.amount}("");
+                (bool success, ) = payable(_user).call{value: crtSchedule.amount}("");
+            
+                require(success, "PaymentChannel: Can`t transfer native token");
             } else { 
                 IERC20(crtSchedule.token).safeTransfer(_user, crtSchedule.amount);
             }
@@ -94,23 +100,15 @@ contract PaymentChannel is AccessControl, IPaymentChannel {
         emit EmergencyChargeback(msg.sender, token, amount);
     }
 
-    function balanceOf(address token) public view returns(uint256 amount){
-        if(token == address(0)) {
-            amount = address(this).balance;
-        } else {
-            amount = IERC20(token).balanceOf(address(this));
-        }
-    }
+    function changeUserWallet(address user) external override onlyOwner {
+        require(user != address(0), "Channel: Wrong user address");
 
-    function changeUserWallet(address user) external override onlyRole(PAYOUT) {
         _user = user;
-
-        _grantRole(USER, user);
     }
 
     function _checkSchedule( address token, uint256 amount) internal {
         if(crtSchedule.token == token && crtSchedule.initTime != 0) {
-            if(balanceOf(token) - amount < crtSchedule.amount) {
+            if(IERC20(token).balanceOf(address(this)) - amount < crtSchedule.amount) {
                 crtSchedule.initTime = 0;
 
                 emit RevertSchedule(token, amount);
