@@ -8,17 +8,6 @@
 1. [$AYA token](#token-contract)
 2. [Tokenomics](#tokenomics)
 
-
-## Token contract
-1. Standard ERC20Permit implementation which allows off-chain approve of tokens.
-2. To pass tests on AYA.sol run
-3. 
-```
-$ git clone https://github.com/papaya-metaverse/blockchain.git
-$ cd blockchain
-$ yarn install && yarn hardhat test --grep "AYA"
-```
-
 ## Tokenomics
 <img width="1378" alt="Снимок экрана 2023-02-11 в 21 09 52" src="https://user-images.githubusercontent.com/79079180/218261499-b5b02981-157e-41b8-89ae-a035a2153833.png">
 <img width="1378" alt="Снимок экрана 2023-02-11 в 21 10 10" src="https://user-images.githubusercontent.com/79079180/218261505-f18991a1-39ea-43f4-91a9-492821054be6.png">
