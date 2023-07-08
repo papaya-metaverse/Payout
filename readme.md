@@ -2,7 +2,7 @@
 [Twitter](https://twitter.com/papaya_meta)
 [Medium](https://medium.com/@papaya-land)
 [Instagram](https://instagram.com/papaya.land)
-<img width="1377" alt="Снимок экрана 2023-02-11 в 21 09 27" src="https://user-images.githubusercontent.com/79079180/218260172-136a16b2-faf3-48da-88fa-bbb2d9229522.png">
+<img width="1377" alt="PAPAYA.LAND" src="https://pbs.twimg.com/profile_banners/1589600869917532160/1682924646/1500x500">
 
 # Table of Contents
 1. [$AYA token](#token-contract)
