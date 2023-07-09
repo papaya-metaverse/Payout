@@ -5,7 +5,7 @@
 <img width="1377" alt="PAPAYA.LAND" src="https://pbs.twimg.com/profile_banners/1589600869917532160/1682924646/1500x500">
 
 # Table of Contents
-1. [$AYA token](#token-contract)
+1. [AYA Token](https://github.com/papaya-metaverse/blockchain/blob/main/contracts/AYA.sol)
 2. [Tokenomics](#tokenomics)
 
 ## Tokenomics
