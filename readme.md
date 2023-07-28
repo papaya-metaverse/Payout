@@ -2,7 +2,7 @@
 [Twitter](https://twitter.com/papaya_meta)
 [Medium](https://medium.com/@papaya-land)
 [Instagram](https://instagram.com/papaya.land)
-<img width="1377" alt="PAPAYA.LAND" src="https://pbs.twimg.com/profile_banners/1589600869917532160/1682924646/1500x500">
+<img width="1380" alt="PAPAYA.LAND" src="https://github.com/papaya-metaverse/blockchain/assets/22211749/817f0f57-359d-41d0-8266-d884cb3a78b1">
 
 # Table of Contents
 1. [AYA Token](https://github.com/papaya-metaverse/blockchain/blob/main/contracts/AYA.sol)
