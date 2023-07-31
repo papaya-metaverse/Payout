@@ -1,59 +1,56 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "./interfaces/IPayout.sol";
 import "./interfaces/IPaymentChannel.sol";
 
-contract PaymentChannel is Ownable, IPaymentChannel {
+contract PaymentChannel is ChannelVoucherVerifier, IPaymentChannel {
     using SafeERC20 for IERC20;
 
     uint48 public constant TIMEOUT = uint48(1 days);
 
-    bytes32 public constant PAYOUT= keccak256("PAYOUT_ROLE");
-    bytes32 public constant USER = keccak256("USER_ROLE");
-
     address immutable _payout;
     address public _user;
 
-    //_scheduleId => Schedule
     PaymentSchedule public crtSchedule;
 
     modifier onlyUser() {
-        require(_msgSender() == _user, "Channel: Wrong access");
+        require(msg.sender == _user, "Channel: Wrong access via User");
+        _;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == _payout, "Channel: Wrong access via Owner");
         _;
     }
 
     constructor() {
         _payout = msg.sender; 
-        _user = IPayout(msg.sender).parameters();
+        _user = IPayout(msg.sender).parameters();   
     }
 
     function withdraw(
-        address[] calldata token, 
-        uint256[] calldata amount
+        ChannelVoucherVerifier.Voucher calldata voucher
     ) external override onlyOwner {
-        require(token.length == amount.length, "Channel: Wrong argument size");
+        _checkSignature(voucher);
+        _checkHash(voucher);
+        _checkSchedule(voucher.token, voucher.amount);
 
-        for(uint i; i < token.length; i++) {
-            _checkSchedule(token[i], amount[i]);
-
-            if(token[i] == address(0)) {
-                if(address(this).balance >= amount[i]) { 
-                    (bool success, ) = payable(_payout).call{value: amount[i]}("");
-                    
-                    require(success, "PaymentChannel: Can`t transfer native token");
-                }
-
-                revert InsFunds("Channel: Can`t take funds from ", token[i]);
-            } else if(IERC20(token[i]).balanceOf(address(this)) >= amount[i]) {
-                IERC20(token[i]).safeTransfer(_payout, amount[i]);
-            } else {
-                revert InsFunds("Channel: Can`t take funds from ", token[i]);
+        if(voucher.token == address(0)) {
+            if(address(this).balance >= voucher.amount) { 
+                (bool success, ) = payable(_payout).call{value: voucher.amount}("");
+                
+                require(success, "PaymentChannel: Can`t transfer native token");
             }
+
+            revert InsFunds("Channel: Can`t take funds from ", voucher.token);
+        } else if(IERC20(voucher.token).balanceOf(address(this)) >= voucher.amount) {
+            IERC20(voucher.token).safeTransfer(_payout, voucher.amount);
+        } else {
+            revert InsFunds("Channel: Can`t take funds from ", voucher.token);
         }
     }
 
@@ -77,8 +74,6 @@ contract PaymentChannel is Ownable, IPaymentChannel {
 
     function withdrawBySchedule() public {
         if(crtSchedule.initTime > 0 && (block.timestamp - crtSchedule.endTime) <= TIMEOUT) {
-            crtSchedule.initTime = 0;
-
             if(crtSchedule.token == address(0)) {
                 (bool success, ) = payable(_user).call{value: crtSchedule.amount}("");
             
@@ -87,6 +82,8 @@ contract PaymentChannel is Ownable, IPaymentChannel {
                 IERC20(crtSchedule.token).safeTransfer(_user, crtSchedule.amount);
             }
 
+            crtSchedule.initTime = 0;
+            
             emit ChargebackBySchedule(msg.sender, crtSchedule.token, crtSchedule.amount);
         }
     }
@@ -104,6 +101,22 @@ contract PaymentChannel is Ownable, IPaymentChannel {
         require(user != address(0), "Channel: Wrong user address");
 
         _user = user;
+    }
+
+    function _checkSignature(ChannelVoucherVerifier.Voucher calldata voucher) internal {
+        address signer = verify(voucher);
+        require(signer == _user, "PaymentChannel: Signature invalid or unauthorized");
+    }
+
+    function _checkHash(ChannelVoucherVerifier.Voucher calldata voucher) internal pure {
+        bytes32 calculatedHash = keccak256(abi.encode(
+            voucher.nonce,
+            voucher.user,
+            voucher.token,
+            voucher.amount
+        ));
+
+        require(calculatedHash == voucher.hash, "PaymentChannel: Data hash is invalid");
     }
 
     function _checkSchedule( address token, uint256 amount) internal {
