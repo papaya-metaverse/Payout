@@ -21,10 +21,16 @@ contract PayoutV2 is Ownable, ReentrancyGuard{
 
     struct UserInfo {
         address refferer;
-        uint48 timestamp;   
-        uint48 subRate;     
-        mapping(address token => uint256 rate) crtRate; 
-        mapping(address token => uint256 amount) reservedBalance;    
+
+        uint48 subRate; 
+        uint48 updTimestamp;
+
+        uint48 withdrawFansTimestamp; 
+
+        mapping(address token => uint256 rate) crtOutcomeRate;
+        mapping(address token => uint256 rate) crtIncomeRate;
+        mapping(address token => uint256 amount) reservedInBalance;
+        mapping(address token => uint256 amount) reservedOutBalance;
     }
     
     struct ContentCreatorInfo {
@@ -41,14 +47,24 @@ contract PayoutV2 is Ownable, ReentrancyGuard{
     mapping(address token => mapping(address user => mapping(address contentCreator => uint256 index))) private _contentCreatorIndex;
     mapping(address token => mapping(address user => ContentCreatorInfo[] contentCreators)) public subscription;
 
+    event Subscribe(address indexed to, address indexed user, address token, uint48 timestamp);
+    event Unsubscribe(address indexed from, address indexed user, address token, uint48 timestamp);
+    event WithdrawFans(address indexed user, address token, uint48 timestamp);
+    event Liquidate(address indexed user, address token, uint48 timestamp); 
+
     modifier onlyUser() {
-        require(users[msg.sender].timestamp > 0, "Payout: Wrong access");
+        require(users[msg.sender].updTimestamp > 0, "Payout: Wrong access");
         _;
     }
 
     modifier onlyExistCC(address contentCreator) {
-        require(users[contentCreator].timestamp > 0, "Payout: User not exist");
+        require(users[contentCreator].updTimestamp > 0, "Payout: User not exist");
         require(msg.sender != contentCreator, "Payout: Wrong access");
+        _;
+    }
+
+    modifier onlyAcceptedToken(address token) {
+        require(isAcceptedToken[token], "Payout: Wrong Token");
         _;
     }
 
@@ -57,166 +73,151 @@ contract PayoutV2 is Ownable, ReentrancyGuard{
     }
 
     function registrate(address _refferer, uint48 _rate) public {
-        require(users[msg.sender].timestamp == 0, "Payout: User already exist");
+        require(_refferer != msg.sender, "Payout: Wrong refferer");
+        require(users[msg.sender].updTimestamp == 0, "Payout: User already exist");
 
         UserInfo storage crtUserInfo = users[msg.sender];
 
-        crtUserInfo.timestamp = uint48(block.timestamp);
+        crtUserInfo.updTimestamp = uint48(block.timestamp);
         crtUserInfo.subRate = _rate;
         crtUserInfo.refferer = _refferer;
     }
 
-    function addTokens(address _token, uint256 _amount) public onlyUser {
-        require(isAcceptedToken[_token] == true, "Payout: Wrong Token");
-
+    function addTokens(address _token, uint256 _amount) public onlyUser onlyAcceptedToken(_token){
         IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
 
         balance[_token][msg.sender] += _amount;
     }
 
-    function subscribe(address _token, address _contentCreator) public onlyUser onlyExistCC(_contentCreator){
-        require(isAcceptedToken[_token], "Payout: Wrong Token");
+    function subscribe(address _token, address _contentCreator) public onlyUser onlyExistCC(_contentCreator) onlyAcceptedToken(_token) {
         UserInfo storage crtUser = users[msg.sender];
+        UserInfo storage crtContentCreator = users[_contentCreator];
+        
+        uint48 crtContentCreatorRate = crtContentCreator.subRate;
 
-        _updateReversedBalance(
-            crtUser, 
-            _token, 
-            subscription[_token][msg.sender].length
+        _updateReservedInBalance(
+            crtContentCreator,
+            _token
+        );
+
+        ContentCreatorInfo memory crtContentCreatorInfo = ContentCreatorInfo(
+            _contentCreator, 
+            uint48(block.timestamp), 
+            crtContentCreatorRate
         );
         
-        uint48 crtContentCreatorRate = users[_contentCreator].subRate;
-
-        ContentCreatorInfo memory crtContentCreator = ContentCreatorInfo(_contentCreator, uint48(block.timestamp), crtContentCreatorRate);
-
-        subscription[_token][msg.sender].push(crtContentCreator);
+        subscription[_token][msg.sender].push(crtContentCreatorInfo);
         _contentCreatorIndex[_token][msg.sender][_contentCreator] = subscription[_token][msg.sender].length - 1; 
 
-        crtUser.crtRate[_token] += uint256(crtContentCreatorRate);
+        crtUser.crtOutcomeRate[_token] += uint256(crtContentCreatorRate);
+        crtContentCreator.crtIncomeRate[_token] += uint256(crtContentCreatorRate);
+
+        emit Subscribe(_contentCreator, msg.sender, _token, uint48(block.timestamp));
     }
 
-    function unsubscribe(address _token, address _contentCreator) public onlyUser onlyExistCC(_contentCreator){
-        require(isAcceptedToken[_token], "Payout: Wrong Token");
+    function unsubscribe(address _token, address _contentCreator) public onlyUser onlyExistCC(_contentCreator) onlyAcceptedToken(_token) {
         require(subscription[_token][msg.sender].length > 0, "Payout: No active subscriptions");
         
-        //If array was empty, smart-contract will send PANIC code
         uint256 index = _contentCreatorIndex[_token][msg.sender][_contentCreator];
-        ContentCreatorInfo storage crtContentCreator = subscription[_token][msg.sender][index];
+        ContentCreatorInfo storage crtCreatorInfo = subscription[_token][msg.sender][index];
 
-        require(_contentCreator == crtContentCreator.creator, "Payout: User not subscribed to certain CC");
+        require(_contentCreator == crtCreatorInfo.creator, "Payout: User not subscribed to certain CC");
 
         uint256 subscriptionLen = subscription[_token][msg.sender].length;
 
         UserInfo storage crtUser = users[msg.sender];
+        UserInfo storage crtContentCreator = users[_contentCreator];
 
-        _updateReversedBalance(
-            crtUser, 
-            _token, 
-            subscriptionLen
+        _updateBalance(
+            crtCreatorInfo,
+            crtUser,
+            msg.sender,
+            _token
         );
 
-        uint256 spentAmount = (block.timestamp - crtContentCreator.timestamp)*crtContentCreator.subRate;
+        uint256 spentAmount = (block.timestamp - crtCreatorInfo.timestamp)*crtCreatorInfo.subRate;
 
-        crtUser.reservedBalance[_token] -= spentAmount;
-        crtUser.crtRate[_token] -= crtContentCreator.subRate;
+        crtUser.crtOutcomeRate[_token] -= crtCreatorInfo.subRate;
 
-        balance[_token][msg.sender] -= spentAmount;
         balance[_token][_contentCreator] += spentAmount;
+        crtContentCreator.crtIncomeRate[_token] -= crtContentCreator.subRate;
 
         if(index == subscriptionLen - 1) {
             subscription[_token][msg.sender].pop();
         } else {
-            crtContentCreator = subscription[_token][msg.sender][subscriptionLen - 1];
+            crtCreatorInfo = subscription[_token][msg.sender][subscriptionLen - 1];
             subscription[_token][msg.sender].pop();
         }
 
         delete _contentCreatorIndex[_token][msg.sender][_contentCreator];
+
+        emit Unsubscribe(_contentCreator, msg.sender, _token, uint48(block.timestamp));
     }
 
-    function withdraw(address _token, uint256 _amount) public onlyUser {    
-        require(isAcceptedToken[_token], "Payout: Wrong Token");
-        require(_amount > 0, "Payout: Wrong amount");
-        UserInfo storage crtUser = users[msg.sender];
+    function withdrawFans(address _token) public onlyUser onlyAcceptedToken(_token) {
+        UserInfo storage crtContentCreator = users[msg.sender];
 
-        _updateReversedBalance(
-            crtUser, 
-            _token, 
-            subscription[_token][msg.sender].length
+        _updateReservedInBalance(
+            crtContentCreator,
+            _token
         );
 
-        uint256 crtFreeBalance = balance[_token][msg.sender] - crtUser.reservedBalance[_token];
-        require(crtFreeBalance >= _amount, "Payout: Insufficial balance");
+        crtContentCreator.withdrawFansTimestamp = uint48(block.timestamp);
 
-        uint256 actualAmount = (_amount * USER_FEE) / FLOOR;
+        balance[_token][msg.sender] += crtContentCreator.reservedInBalance[_token];
+        crtContentCreator.reservedInBalance[_token] = 0;
+
+        emit WithdrawFans(msg.sender, _token, uint48(block.timestamp));
+    }
+
+    function withdraw(address _token, uint256 _amount) public onlyUser onlyAcceptedToken(_token) {
+        UserInfo storage crtUser = users[msg.sender];
+        
+        for(uint i; i < subscription[_token][msg.sender].length; i++) {
+            ContentCreatorInfo storage crtCreatorInfo = subscription[_token][msg.sender][i];
+            _updateBalance(crtCreatorInfo, crtUser, msg.sender, _token);
+            _updateReservedOutBalance(crtCreatorInfo, crtUser, _token);
+        }
+
+        require(balance[_token][msg.sender] > _amount, "Payout: Insufficial balance");
+
+        uint256 totalAmount = (_amount * USER_FEE) / FLOOR;
         uint256 protocolFee;
         uint256 refferalFee;
 
-        if(crtUser.refferer == address(0)) {
+        if(users[msg.sender].refferer == address(0)) {
             protocolFee = (_amount * PROTOCOL_FEE) / FLOOR;
         } else {
             protocolFee = (_amount * PROTOCOL_FEE_WITH_REFFERAL) / FLOOR;
-            refferalFee = (_amount * REFFERAL_FEE) / FLOOR; 
-        }   
+            refferalFee = (_amount * REFFERAL_FEE) / FLOOR;
+        }
 
-        IERC20(_token).safeTransfer(msg.sender, actualAmount);
+        IERC20(_token).safeTransfer(msg.sender, totalAmount);
         IERC20(_token).safeTransfer(serviceWallet, protocolFee);
 
         balance[_token][msg.sender] -= _amount;
-        balance[_token][crtUser.refferer] += refferalFee; 
+        balance[_token][users[msg.sender].refferer] += refferalFee;
     }
 
-    function subPayment(address _token, address _user, address _contentCreator) public nonReentrant onlyExistCC(_user) onlyExistCC(_contentCreator){
-        require(isAcceptedToken[_token], "Payout: Wrong Token");
-        
-        //If array was empty, smart-contract will send PANIC code
-        uint index = _contentCreatorIndex[_token][_user][_contentCreator];
-        ContentCreatorInfo storage crtContentCreator = subscription[_token][_user][index];
-
-        require(_contentCreator == crtContentCreator.creator, "Payout: User not subscribed to certain CC");
-        
-        uint256 subscriptionLen = subscription[_token][_user].length;
-        
+    function liquidate(address _token, address _user) public onlyExistCC(_user) onlyAcceptedToken(_token) {
         UserInfo storage crtUser = users[_user];
+        
+        for(uint i; i < subscription[_token][_user].length; i++) {
+            ContentCreatorInfo storage crtCreatorInfo = subscription[_token][_user][i];
+            _updateBalance(crtCreatorInfo, crtUser, _user, _token);
+            _updateReservedOutBalance(crtCreatorInfo, crtUser,_token);
+        }
 
-        _updateReversedBalance(
-            crtUser, 
-            _token, 
-            subscriptionLen
-        );
+        uint256 actualFreeAmount = balance[_token][_user] - crtUser.reservedOutBalance[_token];
 
-        uint256 spentAmount = (block.timestamp - crtContentCreator.timestamp)*crtContentCreator.subRate;
-        uint256 actualPayment = spentAmount - ((spentAmount * TRESHOLD) / FLOOR);
+        uint256 actualPercentage = (balance[_token][_user] * TRESHOLD) / FLOOR;
 
-        crtContentCreator.timestamp = uint48(block.timestamp);
-
-        balance[_token][_user] -= spentAmount;
-        balance[_token][_contentCreator] += actualPayment;
-        balance[_token][msg.sender] += spentAmount - actualPayment;
-    }
-
-    function liquidate(address _token, address _user) public nonReentrant onlyExistCC(_user) {
-        require(isAcceptedToken[_token], "Payout: Wrong Token");
-       
-        uint256 subscriptionLen = subscription[_token][_user].length;
-
-        require(subscriptionLen > 0, "Payout: No active subscriptions");
-
-        UserInfo storage crtUser = users[_user];
-
-        _updateReversedBalance(
-            crtUser, 
-            _token, 
-            subscriptionLen
-        );
-
-        uint256 actualTreshold = (balance[_token][_user] * TRESHOLD) / FLOOR;
-
-        require((balance[_token][_user] - crtUser.reservedBalance[_token]) < actualTreshold, "Payout: User not reached threshold");
+        require(actualFreeAmount < actualPercentage, "Payout: User not reached balance treshold");
 
         ContentCreatorInfo[] storage crtCreatorInfo = subscription[_token][_user];
 
-        for(int i = int(subscriptionLen - 1); i >= 0; i--) {
-
-            uint256 spentAmount = (block.timestamp - crtCreatorInfo[uint(i)].timestamp)*crtCreatorInfo[uint(i)].subRate;
+        for(int i = int(crtCreatorInfo.length - 1); i >= 0; i--) {
+            uint256 spentAmount = (block.timestamp - crtCreatorInfo[uint(i)].timestamp * crtCreatorInfo[uint(i)].subRate);
 
             balance[_token][_user] -= spentAmount;
             balance[_token][crtCreatorInfo[uint(i)].creator] += spentAmount;
@@ -227,9 +228,6 @@ contract PayoutV2 is Ownable, ReentrancyGuard{
 
         balance[_token][msg.sender] += balance[_token][_user];
         balance[_token][_user] = 0;
-
-        crtUser.crtRate[_token] = 0;
-        crtUser.reservedBalance[_token] = 0;
     }
 
     function setTokenStatus(address[] calldata _tokens, bool _status) public onlyOwner {
@@ -238,27 +236,74 @@ contract PayoutV2 is Ownable, ReentrancyGuard{
         }
     }
 
-    function balanceOf(address _token, address _user) public view returns (uint256) {
-        return balance[_token][_user];
+
+    function getActualBalance(address _token, address _user) public returns (uint256) {
+        UserInfo storage crtUser = users[_user];
+        
+        for(uint i; i < subscription[_token][msg.sender].length; i++) {
+            ContentCreatorInfo storage crtCreatorInfo = subscription[_token][msg.sender][i];
+            _updateBalance(crtCreatorInfo, crtUser, msg.sender, _token);
+            _updateReservedOutBalance(crtCreatorInfo, crtUser, _token);
+        }
+
+        return balance[_token][_user] - crtUser.reservedOutBalance[_token];
     }
 
     function getReservedBalance(address _token, address _user) external view returns (uint256 amount, uint48 timestamp) {
-        amount = users[_user].reservedBalance[_token];
-        timestamp = users[_user].timestamp;
+        amount = users[_user].reservedOutBalance[_token];
+        timestamp = users[_user].updTimestamp;
+    }
+
+    function getSubscriptionLen(address _token, address _user) public view returns (uint256) {
+        return subscription[_token][_user].length;
+    }
+
+    function getCertainSubscription(address _token, address _user, uint256 _index) public view returns (uint48 timestamp, uint48 subrate) {
+        (timestamp, subrate) = (subscription[_token][_user][_index].timestamp, subscription[_token][_user][_index].subRate);
     }
 
     function getTokenStatus(address _token) external view returns(bool) {
         return isAcceptedToken[_token];
     }
+    
+    function _updateBalance(
+        ContentCreatorInfo storage _crtCreatorInfo,
+        UserInfo storage _crtUser,
+        address _userAddr,
+        address _token
+    ) private {
+        if(users[_crtCreatorInfo.creator].withdrawFansTimestamp > _crtCreatorInfo.timestamp) {
+            uint256 amount = _crtCreatorInfo.subRate * (users[_crtCreatorInfo.creator].withdrawFansTimestamp - _crtCreatorInfo.timestamp);
+            balance[_token][_userAddr] -= amount; 
+            _crtUser.reservedOutBalance[_token] -= amount;
 
-    function _updateReversedBalance(UserInfo storage _crtUser,address _token, uint256 _subscriptionLen) private {
-        if(_subscriptionLen > 0) {
-            uint48 estimateTime = uint48(block.timestamp) - _crtUser.timestamp;
-            uint256 crtReservedBalance = estimateTime * _crtUser.crtRate[_token]; 
+            _crtCreatorInfo.timestamp = users[_crtCreatorInfo.creator].withdrawFansTimestamp;
+        }
+    }
+ 
+    function _updateReservedOutBalance(
+        ContentCreatorInfo memory _crtContentCreator,
+        UserInfo storage _crtUser,
+        address _token
+    ) private {
+        if(_crtUser.crtOutcomeRate[_token] > 0) {
+            uint48 estimateTime = uint48(block.timestamp) - _crtContentCreator.timestamp;
+            uint256 crtReservedBalance = estimateTime * _crtContentCreator.subRate;
 
-            _crtUser.reservedBalance[_token] += crtReservedBalance;
-        } 
+            _crtUser.reservedOutBalance[_token] += crtReservedBalance;
+        }
 
-        _crtUser.timestamp = uint48(block.timestamp);
+        _crtUser.updTimestamp = uint48(block.timestamp);
+    }
+
+    function _updateReservedInBalance(UserInfo storage _crtContentCreator, address _token) private {
+        if(_crtContentCreator.crtIncomeRate[_token] > 0) {
+            uint48 estimateTime = uint48(block.timestamp) - _crtContentCreator.updTimestamp;
+            uint256 crtReservedBalance = estimateTime * _crtContentCreator.crtIncomeRate[_token];
+
+            _crtContentCreator.reservedInBalance[_token] += crtReservedBalance; 
+        }
+
+        _crtContentCreator.updTimestamp = uint48(block.timestamp);
     }
 }
