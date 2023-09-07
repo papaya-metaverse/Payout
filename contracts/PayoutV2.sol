@@ -8,63 +8,38 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
+import "./interfaces/IPayoutV2.sol";
 import "./abstract/PayoutVoucherVerifier.sol";
 
-contract PayoutV2 is PayoutVoucherVerifier, AccessControl, ReentrancyGuard{
+contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    address public immutable serviceWallet;
+    address public immutable chainPriceFeed;
 
-    AggregatorV3Interface private chainPriceFeed;
-
-    uint256 public constant FLOOR = 10000;                     // 100%
-    uint256 public constant USER_FEE = 8000;                   // 80%
-    uint256 public constant PROTOCOL_FEE = 2000;               // 20%
+    uint256 public constant FLOOR = 10000; // 100%
+    uint256 public constant USER_FEE = 8000; // 80%
+    uint256 public constant PROTOCOL_FEE = 2000; // 20%
     uint256 public constant PROTOCOL_FEE_WITH_REFFERAL = 1500; // 15%
-    uint256 public constant REFFERAL_FEE = 500;                // 5%
+    uint256 public constant REFFERAL_FEE = 500; // 5%
 
     uint256 public constant DAY_TRESHOLD = 1 days;
 
-    uint256 public constant LIQUIDATE_GAS = 63000;
-    uint256 public constant SUBSCRIPTION_GAS = 18000;
-
-    uint256 public constant SIX_DIGITS_FLOOR = 0xF4240;
-    uint256 public constant EIGHTEEN_DIGITS_FLOOR = 0xDE0B6B3A7640000;
+    uint256 public constant APPROX_LIQUIDATE_GAS = 63000;
+    uint256 public constant APPROX_SUBSCRIPTION_GAS = 18000;
 
     bytes32 public constant SPECIAL_LIQUIDATOR = keccak256(abi.encodePacked("SPECIAL_LIQUIDATOR"));
 
-    struct UserInfo {
-        address refferer;
-        int48 subRate;
-        uint48 updTimestamp;  
-        mapping(address token => int256 rate) crtRate;    
-    }
-    
-    struct ContentCreatorInfo {
-        address creator;
-        uint48 timestamp;
-        int48 subRate;
-    }
-
-    struct TokenInfo {
-        bool status;
-        uint8 decimals;
-        AggregatorV3Interface priceFeed;
-    }
+    address public serviceWallet;
 
     mapping(address token => TokenInfo) public knownTokens;
-    
-    mapping(address user => UserInfo) public users;
-    mapping(address token => mapping(address user => uint256 amount)) private balance;
-    
-    mapping(address token => mapping(address user => mapping(address contentCreator => uint256 index))) private _contentCreatorIndex;
-    mapping(address token => mapping(address user => ContentCreatorInfo[] contentCreators)) public subscription;
 
-    event Registrate(address indexed user, uint48 timestamp);
-    event Subscribe(address indexed to, address indexed user, address token, uint48 timestamp);
-    event Unsubscribe(address indexed from, address indexed user, address token, uint48 timestamp);
-    event Withdraw(address indexed user, address token, uint256 amount, uint48 timestamp);
-    event Liquidate(address indexed user, address token, uint48 timestamp); 
+    mapping(address user => UserInfo) public users;
+    mapping(address token => mapping(address user => int256 rate)) crtRate;
+    mapping(address token => mapping(address user => int256 amount)) public balance;
+
+    mapping(address token => mapping(address user => ContentCreatorInfo[] contentCreators)) public subscription;
+    mapping(address token => mapping(address user => mapping(address contentCreator => uint256 index)))
+        internal _contentCreatorIndex;
 
     modifier onlyUser() {
         require(users[msg.sender].updTimestamp > 0, "Payout: Wrong access");
@@ -73,7 +48,7 @@ contract PayoutV2 is PayoutVoucherVerifier, AccessControl, ReentrancyGuard{
 
     modifier onlyExistCC(address contentCreator) {
         require(users[contentCreator].updTimestamp > 0, "Payout: User not exist");
-        require(msg.sender != contentCreator, "Payout: Wrong access");
+        require(msg.sender != contentCreator, "Payout: You can`t be your own refferal");
         _;
     }
 
@@ -82,155 +57,168 @@ contract PayoutV2 is PayoutVoucherVerifier, AccessControl, ReentrancyGuard{
         _;
     }
 
-    constructor(address _serviceWallet , address _chainPriceFeed) {
-        serviceWallet = _serviceWallet;
+    constructor(address serviceWallet_, address chainPriceFeed_) {
+        serviceWallet = serviceWallet_;
 
-        chainPriceFeed = AggregatorV3Interface(_chainPriceFeed);
+        chainPriceFeed = chainPriceFeed_;
 
         grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function registrate(address _refferer, int48 _rate) public {
-        require(_refferer != msg.sender, "Payout: Wrong refferer");
+    function registrate(address refferer_, int48 rate_) external override {
+        require(refferer_ != msg.sender, "Payout: Wrong refferer");
         require(users[msg.sender].updTimestamp == 0, "Payout: User already exist");
 
         UserInfo storage crtUserInfo = users[msg.sender];
 
         crtUserInfo.updTimestamp = uint48(block.timestamp);
-        crtUserInfo.subRate = _rate;
-        crtUserInfo.refferer = _refferer;
+        crtUserInfo.subRate = rate_;
+        crtUserInfo.refferer = refferer_;
 
         emit Registrate(msg.sender, uint48(block.timestamp));
     }
 
-    function addTokens(address _token, uint256 _amount) public onlyUser onlyAcceptedToken(_token){
-        IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
+    function deposit(
+        address token_,
+        uint256 amount_
+    ) external override nonReentrant onlyUser onlyAcceptedToken(token_) {
+        balance[token_][msg.sender] += int(amount_);
 
-        balance[_token][msg.sender] += _amount;
+        IERC20(token_).safeTransferFrom(msg.sender, address(this), amount_);
+
+        emit Deposit(msg.sender, token_, amount_);
     }
 
-    function subscribe(address _token, address _contentCreator) public onlyUser onlyExistCC(_contentCreator) onlyAcceptedToken(_token) {
+    function subscribe(
+        address token_,
+        address contentCreator_
+    ) external override onlyUser onlyExistCC(contentCreator_) onlyAcceptedToken(token_) {
         UserInfo storage crtUser = users[msg.sender];
-        UserInfo storage crtContentCreator = users[_contentCreator];
+        UserInfo storage crtContentCreator = users[contentCreator_];
 
-        _updateBalance(crtUser, msg.sender, _token);
-        _updateBalance(crtContentCreator, _contentCreator, _token);
+        _updateBalance(crtUser, msg.sender, token_);
+        _updateBalance(crtContentCreator, contentCreator_, token_);
 
         int48 crtContentCreatorRate = crtContentCreator.subRate;
+
+        require(
+            _isLiquidate(crtRate[token_][msg.sender] + int256(crtContentCreatorRate), msg.sender, token_),
+            "Payout: Top up your balance to subscribe to the author"
+        );
 
         ContentCreatorInfo memory crtContentCreatorInfo = ContentCreatorInfo(
-            _contentCreator, 
-            uint48(block.timestamp), 
+            contentCreator_,
+            uint48(block.timestamp),
             crtContentCreatorRate
         );
-        
-        subscription[_token][msg.sender].push(crtContentCreatorInfo);
-        _contentCreatorIndex[_token][msg.sender][_contentCreator] = subscription[_token][msg.sender].length - 1; 
 
-        crtUser.crtRate[_token] -= int256(crtContentCreatorRate);
-        crtContentCreator.crtRate[_token] += int256(crtContentCreatorRate);
+        subscription[token_][msg.sender].push(crtContentCreatorInfo);
+        _contentCreatorIndex[token_][msg.sender][contentCreator_] = subscription[token_][msg.sender].length - 1;
 
-        emit Subscribe(_contentCreator, msg.sender, _token, uint48(block.timestamp));
+        crtRate[token_][msg.sender] -= int256(crtContentCreatorRate);
+        crtRate[token_][contentCreator_] += int256(crtContentCreatorRate);
+
+        emit Subscribe(contentCreator_, msg.sender, token_, uint48(block.timestamp));
     }
 
-    uint256 public subscriptionLen;
+    function unsubscribe(
+        address token_,
+        address contentCreator_
+    ) external override onlyUser onlyExistCC(contentCreator_) onlyAcceptedToken(token_) {
+        require(subscription[token_][msg.sender].length > 0, "Payout: No active subscriptions");
 
-    function unsubscribe(address _token, address _contentCreator) public 
-    onlyUser 
-    onlyExistCC(_contentCreator) 
-    onlyAcceptedToken(_token) {
-        require(subscription[_token][msg.sender].length > 0, "Payout: No active subscriptions");
-        
-        uint256 index = _contentCreatorIndex[_token][msg.sender][_contentCreator];
-        ContentCreatorInfo storage crtCreatorInfo = subscription[_token][msg.sender][index];
+        uint256 index = _contentCreatorIndex[token_][msg.sender][contentCreator_];
+        ContentCreatorInfo storage crtCreatorInfo = subscription[token_][msg.sender][index];
 
-        require(_contentCreator == crtCreatorInfo.creator, "Payout: User not subscribed to certain CC");
+        require(contentCreator_ == crtCreatorInfo.creator, "Payout: User not subscribed to certain CC");
 
-        subscriptionLen = subscription[_token][msg.sender].length;
+        uint256 subscriptionLen = subscription[token_][msg.sender].length;
 
         UserInfo storage crtUser = users[msg.sender];
-        UserInfo storage crtContentCreator = users[_contentCreator];
+        UserInfo storage crtContentCreator = users[contentCreator_];
 
         int48 crtContentCreatorRate = crtContentCreator.subRate;
 
-        _updateBalance(crtUser, msg.sender, _token);
-        _updateBalance(crtContentCreator, _contentCreator, _token);
+        _updateBalance(crtUser, msg.sender, token_);
+        _updateBalance(crtContentCreator, contentCreator_, token_);
 
-        crtUser.crtRate[_token] += int256(crtContentCreatorRate);
-        crtContentCreator.crtRate[_token] -= int256(crtContentCreatorRate);
+        crtRate[token_][msg.sender] += int256(crtContentCreatorRate);
+        crtRate[token_][contentCreator_] -= int256(crtContentCreatorRate);
 
-        if(index == subscriptionLen - 1) {
-            subscription[_token][msg.sender].pop();
+        if (index == subscriptionLen - 1) {
+            subscription[token_][msg.sender].pop();
         } else {
-            subscription[_token][msg.sender][index] = subscription[_token][msg.sender][subscriptionLen - 1];
-            _contentCreatorIndex[_token][msg.sender][crtCreatorInfo.creator] = index;
-            subscription[_token][msg.sender].pop();
+            subscription[token_][msg.sender][index] = subscription[token_][msg.sender][subscriptionLen - 1];
+            _contentCreatorIndex[token_][msg.sender][crtCreatorInfo.creator] = index;
+            subscription[token_][msg.sender].pop();
         }
 
-        delete _contentCreatorIndex[_token][msg.sender][_contentCreator];
+        delete _contentCreatorIndex[token_][msg.sender][contentCreator_];
 
-        emit Unsubscribe(_contentCreator, msg.sender, _token, uint48(block.timestamp));
+        emit Unsubscribe(contentCreator_, msg.sender, token_, uint48(block.timestamp));
     }
 
-    function withdraw(address _token, uint256 _amount) public onlyUser onlyAcceptedToken(_token) {
+    function withdraw(
+        address token_,
+        uint256 amount_
+    ) external override nonReentrant onlyUser onlyAcceptedToken(token_) {
         UserInfo storage crtUser = users[msg.sender];
-        
-        _updateBalance(crtUser, msg.sender, _token);
 
-        require(balance[_token][msg.sender] > _amount, "Payout: Insufficial balance");
+        _updateBalance(crtUser, msg.sender, token_);
 
-        uint256 totalAmount = (_amount * USER_FEE) / FLOOR;
+        require(balance[token_][msg.sender] > int(amount_), "Payout: Insufficial balance");
+
+        uint256 totalAmount = (amount_ * USER_FEE) / FLOOR;
         uint256 protocolFee;
         uint256 refferalFee;
 
-        if(users[msg.sender].refferer == address(0)) {
-            protocolFee = (_amount * PROTOCOL_FEE) / FLOOR;
+        if (users[msg.sender].refferer == address(0)) {
+            protocolFee = (amount_ * PROTOCOL_FEE) / FLOOR;
         } else {
-            protocolFee = (_amount * PROTOCOL_FEE_WITH_REFFERAL) / FLOOR;
-            refferalFee = (_amount * REFFERAL_FEE) / FLOOR;
+            protocolFee = (amount_ * PROTOCOL_FEE_WITH_REFFERAL) / FLOOR;
+            refferalFee = (amount_ * REFFERAL_FEE) / FLOOR;
         }
 
-        IERC20(_token).safeTransfer(msg.sender, totalAmount);
-        IERC20(_token).safeTransfer(serviceWallet, protocolFee);
+        balance[token_][msg.sender] -= int(amount_);
+        balance[token_][users[msg.sender].refferer] += int(refferalFee);
 
-        balance[_token][msg.sender] -= _amount;
-        balance[_token][users[msg.sender].refferer] += refferalFee;
+        IERC20(token_).safeTransfer(msg.sender, totalAmount);
+        IERC20(token_).safeTransfer(serviceWallet, protocolFee);
 
-        emit Withdraw(msg.sender, _token, _amount, uint48(block.timestamp));
+        emit Withdraw(msg.sender, token_, amount_, uint48(block.timestamp));
     }
 
-    function liquidate(address _token, address _user) public onlyExistCC(_user) onlyAcceptedToken(_token) {
-        UserInfo storage crtUser = users[_user];
-        _updateBalance(crtUser, _user, _token);
+    function liquidate(address token_, address user_) external override onlyExistCC(user_) onlyAcceptedToken(token_) {
+        UserInfo storage crtUser = users[user_];
+        _updateBalance(crtUser, user_, token_);
 
-        require(_isLiquidate(crtUser.crtRate[_token], _user, _token), "Payout: User can`t be liquidated");
-        
-        if(_isLegal(_token, _user) == false) {
+        require(_isLiquidate(crtRate[token_][user_], user_, token_), "Payout: User can`t be liquidated");
+
+        if (_isLegal(token_, user_) == false) {
             require(hasRole(SPECIAL_LIQUIDATOR, msg.sender), "Payout: Wrong access");
         }
 
-        for(int i = int(subscription[_token][_user].length - 1); i >= 0; i--) {
-            address creatorAddr = subscription[_token][_user][uint(i)].creator;
+        for (int i = int(subscription[token_][user_].length - 1); i >= 0; i--) {
+            address creatorAddr = subscription[token_][user_][uint(i)].creator;
             UserInfo storage crtCreator = users[creatorAddr];
-            _updateBalance(crtCreator, creatorAddr, _token);
+            _updateBalance(crtCreator, creatorAddr, token_);
 
-            crtCreator.crtRate[_token] -= int256(int48(crtCreator.subRate));
+            crtRate[token_][creatorAddr] -= int256(int48(crtCreator.subRate));
 
-            delete _contentCreatorIndex[_token][_user][creatorAddr];
-            subscription[_token][_user].pop();
+            delete _contentCreatorIndex[token_][user_][creatorAddr];
+            subscription[token_][user_].pop();
         }
 
-        balance[_token][msg.sender] += balance[_token][_user];
-        balance[_token][_user] = 0;
-        crtUser.crtRate[_token] = 0;
+        balance[token_][msg.sender] += balance[token_][user_];
+        balance[token_][user_] = 0;
+        crtRate[token_][user_] = 0;
 
-        emit Liquidate(_user, _token, uint48(block.timestamp));
+        emit Liquidate(user_, token_, uint48(block.timestamp));
     }
 
-    function paymentViaVoucher(PayoutVoucherVerifier.Voucher calldata voucher) public 
-    onlyAcceptedToken(voucher.token) 
-    onlyExistCC(voucher.creator) 
-    {
+    function paymentViaVoucher(
+        PayoutVoucherVerifier.Voucher calldata voucher
+    ) public onlyAcceptedToken(voucher.token) onlyExistCC(voucher.creator) {
         _checkSignature(voucher);
 
         UserInfo storage crtUser = users[voucher.user];
@@ -239,78 +227,72 @@ contract PayoutV2 is PayoutVoucherVerifier, AccessControl, ReentrancyGuard{
         _updateBalance(crtUser, voucher.user, voucher.token);
         _updateBalance(crtCreator, voucher.creator, voucher.token);
 
-        balance[voucher.token][voucher.user] -= voucher.amount;
-        balance[voucher.token][voucher.creator] += voucher.amount;
+        balance[voucher.token][voucher.user] -= int(voucher.amount);
+        balance[voucher.token][voucher.creator] += int(voucher.amount);
+
+        emit PaymentViaVoucher(voucher.user, voucher.creator, voucher.token, voucher.amount);
     }
 
-    function getCrtRate(address _user, address _token) public view returns (int256) {
-        return users[_user].crtRate[_token];
-    }
-
-    function setTokenStatus(
-        address[] calldata _tokens, 
-        uint8[] calldata _decimals,
-        address[] calldata _priceFeed,
+    function addTokens(
+        address[] calldata tokens_,
+        address[] calldata priceFeeds_,
         bool _status
-    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_tokens.length == _decimals.length && _decimals.length == _priceFeed.length, "Payout: Wrong argument length");
+    ) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(tokens_.length == priceFeeds_.length, "Payout: Wrong argument length");
 
-        for(uint i; i < _tokens.length; i++) {
-            knownTokens[_tokens[i]] = TokenInfo(
-                _status,
-                _decimals[i],
-                AggregatorV3Interface(_priceFeed[i])
-            );
+        for (uint i; i < tokens_.length; i++) {
+            knownTokens[tokens_[i]] = TokenInfo(_status, priceFeeds_[i]);
         }
     }
 
-    function balanceOf(address _token, address _user) public view returns(uint256 amount, uint48 timestamp) {
-        (amount, timestamp) = (balance[_token][_user], users[_user].updTimestamp);
+    function updateServiceWallet(address newWallet_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        serviceWallet = newWallet_;
     }
 
-    function updateBalance(address _token, address _user) public onlyAcceptedToken(_token) onlyExistCC(_user) {
-        UserInfo storage crtUser = users[_user];
-
-        _updateBalance(crtUser, _user, _token);
+    function balanceOf(address token_, address user_) external view returns (int256 amount, uint48 timestamp) {
+        (amount, timestamp) = (balance[token_][user_], users[user_].updTimestamp);
     }
 
-    function isLiquidate(address _token, address _user) public view onlyAcceptedToken(_token) onlyExistCC(_user) returns(bool){
-        return _isLiquidate(users[_user].crtRate[_token], _user, _token);
+    function updateBalance(address token_, address user_) external onlyAcceptedToken(token_) onlyExistCC(user_) {
+        UserInfo storage crtUser_ = users[user_];
+
+        _updateBalance(crtUser_, user_, token_);
     }
 
-    function getSubscriptionLen(address _token, address _user) public view returns (uint256) {
-        return subscription[_token][_user].length;
+    function isLiquidate(
+        address token_,
+        address user_
+    ) external view override onlyAcceptedToken(token_) onlyExistCC(user_) returns (bool) {
+        return _isLiquidate(crtRate[token_][user_], user_, token_);
     }
 
-    function getCertainSubscription(address _token, address _user, uint256 _index) public view returns (uint48 timestamp, int48 subrate) {
-        (timestamp, subrate) = (subscription[_token][_user][_index].timestamp, subscription[_token][_user][_index].subRate);
+    function getTokenStatus(address token_) external view returns (bool) {
+        return knownTokens[token_].status;
     }
 
-    function getTokenStatus(address _token) external view returns(bool) {
-        return knownTokens[_token].status;
-    }
-
-    function _updateBalance(UserInfo storage crtUser, address _user, address _token) private {
-        if(crtUser.crtRate[_token] != 0) {
+    function _updateBalance(UserInfo storage crtUser_, address user_, address token_) internal {
+        if (crtRate[token_][user_] != 0) {
             int amount;
-            unchecked { 
-                if(crtUser.crtRate[_token] > 0) {
-                    amount = crtUser.crtRate[_token] * int(int48(uint48(block.timestamp) - crtUser.updTimestamp));
-                    balance[_token][_user] += uint(amount);
+            unchecked {
+                if (crtRate[token_][user_] > 0) {
+                    amount = crtRate[token_][user_] * int(int48(uint48(block.timestamp) - crtUser_.updTimestamp));
+                    balance[token_][user_] += amount;
                 } else {
-                    amount = (crtUser.crtRate[_token] * -1) * int(int48(uint48(block.timestamp) - crtUser.updTimestamp));
-                    balance[_token][_user] -= uint(amount);
+                    amount =
+                        (crtRate[token_][user_] * -1) *
+                        int(int48(uint48(block.timestamp) - crtUser_.updTimestamp));
+                    balance[token_][user_] -= amount;
                 }
             }
         }
 
-        crtUser.updTimestamp = uint48(block.timestamp);
+        crtUser_.updTimestamp = uint48(block.timestamp);
     }
-    
-    function _isLiquidate(int userRate, address _user, address _token) private view returns (bool) {
-        if(userRate < 0) {
-            int amount = (userRate * -1) * 1 days;
-            if(uint(amount) > balance[_token][_user]) {
+
+    function _isLiquidate(int userRate_, address user_, address token_) internal view returns (bool) {
+        if (userRate_ < 0) {
+            int amount = (userRate_ * -1) * 1 days;
+            if (amount > balance[token_][user_]) {
                 return true;
             }
         }
@@ -318,31 +300,27 @@ contract PayoutV2 is PayoutVoucherVerifier, AccessControl, ReentrancyGuard{
         return false;
     }
 
-    function _checkSignature(PayoutVoucherVerifier.Voucher calldata voucher) internal {
-        address signer = verify(voucher);
-        require(signer == voucher.user, "Payout: Signature invalid or unauthorized");
+    function _checkSignature(PayoutVoucherVerifier.Voucher calldata voucher_) internal {
+        address signer = verify(voucher_);
+        require(signer == voucher_.user, "Payout: Signature invalid or unauthorized");
     }
 
-    function _isLegal(address _token, address _user) private view returns (bool) {
-        TokenInfo memory crtTokenInfo = knownTokens[_token];
-        
-        int256 tokenPrice; 
+    function _isLegal(address token_, address user_) internal view returns (bool) {
+        TokenInfo memory crtTokenInfo = knownTokens[token_];
+
+        int256 tokenPrice;
         int256 chainTokenPrice;
 
-        (,tokenPrice,,,) = crtTokenInfo.priceFeed.latestRoundData();
-        (,chainTokenPrice,,,) = chainPriceFeed.latestRoundData();
+        (, tokenPrice, , , ) = AggregatorV3Interface(crtTokenInfo.priceFeed).latestRoundData();
+        (, chainTokenPrice, , , ) = AggregatorV3Interface(chainPriceFeed).latestRoundData();
 
-        uint256 predictedPrice = tx.gasprice * (LIQUIDATE_GAS + SUBSCRIPTION_GAS * subscription[_token][_user].length);
-        
-        uint256 transactionCostInUSD = (uint(chainTokenPrice) * predictedPrice) / EIGHTEEN_DIGITS_FLOOR;
-        uint256 userBalanceInUSD; 
-        if(crtTokenInfo.decimals == 6) {
-            userBalanceInUSD = (uint(tokenPrice) * balance[_token][_user]) / SIX_DIGITS_FLOOR;
-        } else {
-            userBalanceInUSD = (uint(tokenPrice) * balance[_token][_user]) / EIGHTEEN_DIGITS_FLOOR;
-        }
+        uint256 predictedPrice = tx.gasprice *
+            (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * subscription[token_][user_].length);
 
-        if(transactionCostInUSD > userBalanceInUSD) {
+        uint256 transactionCostInETH = (uint(chainTokenPrice) * predictedPrice);
+        uint256 userBalanceInETH = uint((tokenPrice) * balance[token_][user_]);
+
+        if (transactionCostInETH > userBalanceInETH) {
             return false;
         }
 
