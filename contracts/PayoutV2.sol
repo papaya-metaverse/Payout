@@ -89,6 +89,12 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
         emit Deposit(msg.sender, token_, amount_);
     }
 
+    function updateRate(int48 rate_) external override onlyUser {
+        users[msg.sender].subRate = rate_;
+
+        emit UpdateRate(msg.sender, uint48(block.timestamp), rate_);
+    }
+
     function subscribe(
         address token_,
         address contentCreator_
@@ -104,6 +110,12 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
         require(
             _isLiquidate(crtRate[token_][msg.sender] + int256(crtContentCreatorRate), msg.sender, token_),
             "Payout: Top up your balance to subscribe to the author"
+        );
+
+        require(
+            subscription[token_][msg.sender][_contentCreatorIndex[token_][msg.sender][contentCreator_]].creator !=
+                contentCreator_,
+            "Payout: You`ve already subscribed to the content creator"
         );
 
         ContentCreatorInfo memory crtContentCreatorInfo = ContentCreatorInfo(
@@ -130,7 +142,7 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
         uint256 index = _contentCreatorIndex[token_][msg.sender][contentCreator_];
         ContentCreatorInfo storage crtCreatorInfo = subscription[token_][msg.sender][index];
 
-        require(contentCreator_ == crtCreatorInfo.creator, "Payout: User not subscribed to certain CC");
+        require(contentCreator_ == crtCreatorInfo.creator, "Payout: User not subscribed to the content creator");
 
         uint256 subscriptionLen = subscription[token_][msg.sender].length;
 

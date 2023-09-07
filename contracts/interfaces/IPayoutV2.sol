@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 interface IPayoutV2 {
     event Registrate(address indexed user, uint48 timestamp);
     event Deposit(address indexed user, address token, uint256 amount);
+    event UpdateRate(address indexed user, uint48 timestamp, int48 rate);
     event Subscribe(address indexed to, address indexed user, address token, uint48 timestamp);
     event Unsubscribe(address indexed from, address indexed user, address token, uint48 timestamp);
     event Withdraw(address indexed user, address token, uint256 amount, uint48 timestamp);
@@ -31,6 +32,8 @@ interface IPayoutV2 {
     function registrate(address refferer_, int48 rate_) external;
 
     function deposit(address token_, uint256 amount_) external;
+
+    function updateRate(int48 rate_) external;
 
     function subscribe(address token_, address contentCreator_) external;
 
