@@ -24,7 +24,7 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
 
     uint256 public constant DAY_TRESHOLD = 1 days;
 
-    uint256 public constant APPROX_LIQUIDATE_GAS = 63000;
+    uint256 public constant APPROX_LIQUIDATE_GAS = 66000;
     uint256 public constant APPROX_SUBSCRIPTION_GAS = 18000;
 
     bytes32 public constant SPECIAL_LIQUIDATOR = keccak256(abi.encodePacked("SPECIAL_LIQUIDATOR"));
@@ -247,13 +247,14 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
 
     function addTokens(
         address[] calldata tokens_,
+        uint8[] calldata decimals_,
         address[] calldata priceFeeds_,
-        bool _status
+        bool status_
     ) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         require(tokens_.length == priceFeeds_.length, "Payout: Wrong argument length");
 
         for (uint i; i < tokens_.length; i++) {
-            knownTokens[tokens_[i]] = TokenInfo(_status, priceFeeds_[i]);
+            knownTokens[tokens_[i]] = TokenInfo(status_, decimals_[i], priceFeeds_[i]);
         }
     }
 
@@ -321,16 +322,20 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
         TokenInfo memory crtTokenInfo = knownTokens[token_];
 
         int256 tokenPrice;
+       
         int256 chainTokenPrice;
+        uint8 chainTokenDecimals;
 
         (, tokenPrice, , , ) = AggregatorV3Interface(crtTokenInfo.priceFeed).latestRoundData();
+        
         (, chainTokenPrice, , , ) = AggregatorV3Interface(chainPriceFeed).latestRoundData();
+        chainTokenDecimals = AggregatorV3Interface(chainPriceFeed).decimals();
 
         uint256 predictedPrice = tx.gasprice *
             (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * subscription[token_][user_].length);
 
-        uint256 transactionCostInETH = (uint(chainTokenPrice) * predictedPrice);
-        uint256 userBalanceInETH = uint((tokenPrice) * balance[token_][user_]);
+        uint256 transactionCostInETH = (uint(chainTokenPrice) * predictedPrice) / chainTokenDecimals;
+        uint256 userBalanceInETH = uint(tokenPrice * balance[token_][user_]) / crtTokenInfo.decimals;
 
         if (transactionCostInETH > userBalanceInETH) {
             return false;

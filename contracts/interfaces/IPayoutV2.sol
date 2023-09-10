@@ -25,7 +25,8 @@ interface IPayoutV2 {
 
     struct TokenInfo {
         bool status;
-        address priceFeed;
+        uint8 decimals;
+        address priceFeed; // TOKEN/ETH || TOKEN/CHAIN_TOKEN
     }
 
     //USER INTERACTION
@@ -50,7 +51,7 @@ interface IPayoutV2 {
     function isLiquidate(address token_, address user_) external returns (bool);
 
     //ADMIN INTERACTION
-    function addTokens(address[] calldata tokens_, address[] calldata priceFeed_, bool status_) external;
+    function addTokens(address[] calldata tokens_, uint8[] calldata decimals_, address[] calldata priceFeed_, bool status_) external;
 
     function updateServiceWallet(address newWallet_) external;
 }
