@@ -24,7 +24,7 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
 
     uint256 public constant DAY_TRESHOLD = 1 days;
 
-    uint256 public constant APPROX_LIQUIDATE_GAS = 66000;
+    uint256 public constant APPROX_LIQUIDATE_GAS = 68000;
     uint256 public constant APPROX_SUBSCRIPTION_GAS = 18000;
 
     bytes32 public constant SPECIAL_LIQUIDATOR = keccak256(abi.encodePacked("SPECIAL_LIQUIDATOR"));
@@ -331,7 +331,7 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
         (, chainTokenPrice, , , ) = AggregatorV3Interface(chainPriceFeed).latestRoundData();
         chainTokenDecimals = AggregatorV3Interface(chainPriceFeed).decimals();
 
-        uint256 predictedPrice = tx.gasprice *
+        uint256 predictedPrice = block.basefee *
             (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * subscription[token_][user_].length);
 
         uint256 transactionCostInETH = (uint(chainTokenPrice) * predictedPrice) / chainTokenDecimals;
