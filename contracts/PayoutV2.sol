@@ -334,8 +334,8 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
         (, chainTokenPrice, , , ) = AggregatorV3Interface(chainPriceFeed).latestRoundData();
         chainTokenDecimals = AggregatorV3Interface(chainPriceFeed).decimals();
 
-        uint256 predictedPrice = (block.basefee *
-            (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * subscription[token_][user_].length)) / 1e9;
+        uint256 predictedPrice = tx.gasprice *
+            (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * subscription[token_][user_].length);
 
         uint256 transactionCostInETH = (uint(chainTokenPrice) * predictedPrice) / chainTokenDecimals;
         int256 userBalanceInETH = (userTokenPrice * balance[token_][user_]) / int(int8(userTokenDecimals));
