@@ -9,8 +9,8 @@ abstract contract PayoutVoucherVerifier is EIP712 {
         uint256 nonce;
         address user;
         address creator;
-        uint256 amount; 
         address token;
+        int256 amount;
         bytes signature;
     }
 
@@ -18,17 +18,23 @@ abstract contract PayoutVoucherVerifier is EIP712 {
     string private constant SIGNATURE_VERSION = "1";
 
     mapping(address => uint256) public nonces;
+
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
 
     function _hash(Voucher calldata voucher) internal view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(
-        keccak256("Voucher(uint256 nonce,address user,address creator,uint256 amount,address token)"),
-        voucher.nonce,
-        voucher.user,
-        voucher.creator,
-        voucher.amount,
-        voucher.token
-        )));
+        return
+            _hashTypedDataV4(
+                keccak256(
+                    abi.encode(
+                        keccak256("Voucher(uint256 nonce,address user,address creator,address token,int256 amount)"),
+                        voucher.nonce,
+                        voucher.user,
+                        voucher.creator,
+                        voucher.token,
+                        voucher.amount
+                    )
+                )
+            );
     }
 
     function getChainID() external view returns (uint256) {

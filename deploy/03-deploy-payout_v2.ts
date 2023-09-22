@@ -9,19 +9,22 @@ const deployPayout: DeployFunction = async function (
     const { deploy, log } = deployments
     const { deployer } = await getNamedAccounts()
 
-    let papayaReceiver
-    if (developmentChains.includes(network.name)) {
-        papayaReceiver = (await ethers.getSigners())[19].address
-    } else {
-        papayaReceiver = networkConfig[network.name].papayaReceiver
-    }
-    const args: any[] = [papayaReceiver]
+    const REAL_MAGIC_NUMBER = 19
 
-    await deploy("Payout", {
+    const serviceWallet = networkConfig[network.name].payoutV2.serviceWallet
+    const chainPriceFeed = networkConfig[network.name].payoutV2.chainPriceFeed
+
+    const args: any[] = [
+        serviceWallet == undefined ? 
+            (await ethers.getSigners())[REAL_MAGIC_NUMBER].address : serviceWallet, 
+        chainPriceFeed
+    ]
+
+    await deploy("PayoutV2", {
         from: deployer,
         log: true,
         args: args,
     })
 }
 export default deployPayout
-deployPayout.tags = ["all", "payout"]
+deployPayout.tags = ["all", "payoutv2", "payoutV2", "PayoutV2", "Payoutv2"]

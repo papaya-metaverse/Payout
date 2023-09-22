@@ -4,17 +4,18 @@ pragma solidity ^0.8.19;
 interface IPayoutV2 {
     event Registrate(address indexed user, uint48 timestamp);
     event Deposit(address indexed user, address token, uint256 amount);
-    event UpdateRate(address indexed user, uint48 timestamp, int48 rate);
+    event ChangeRate(address indexed user, uint48 timestamp, int48 rate);
     event Subscribe(address indexed to, address indexed user, address token, uint48 timestamp);
     event Unsubscribe(address indexed from, address indexed user, address token, uint48 timestamp);
     event Withdraw(address indexed user, address token, uint256 amount, uint48 timestamp);
     event Liquidate(address indexed user, address token, uint48 timestamp);
-    event PaymentViaVoucher(address indexed user, address contentCreator, address token, uint256 amount);
+    event PaymentViaVoucher(address indexed user, address contentCreator, address token, int256 amount);
 
     struct UserInfo {
         address refferer;
         int48 subRate;
         uint48 updTimestamp;
+        int256 totalBalance;
     }
 
     struct ContentCreatorInfo {
@@ -25,7 +26,6 @@ interface IPayoutV2 {
 
     struct TokenInfo {
         bool status;
-        uint8 decimals;
         address priceFeed; // TOKEN/ETH || TOKEN/CHAIN_TOKEN
     }
 
@@ -34,7 +34,7 @@ interface IPayoutV2 {
 
     function deposit(address token_, uint256 amount_) external;
 
-    function updateRate(int48 rate_) external;
+    function changeRate(int48 rate_) external;
 
     function subscribe(address token_, address contentCreator_) external;
 
@@ -44,14 +44,18 @@ interface IPayoutV2 {
 
     function liquidate(address token_, address user_) external;
 
-    function balanceOf(address token_, address user_) external returns (int256 amount, uint48 timestamp);
+    function balanceOf(address user_) external returns (uint256);
+
+    function tokenBalanceOf(address token_, address user_) external returns (int256 amount, uint48 timestamp);
 
     function updateBalance(address token_, address user_) external;
-
-    function isLiquidate(address token_, address user_) external returns (bool);
-
+    
     //ADMIN INTERACTION
-    function addTokens(address[] calldata tokens_, uint8[] calldata decimals_, address[] calldata priceFeed_, bool status_) external;
+    function addTokens(
+        address[] calldata priceFeed_,
+        address[] calldata tokens_,
+        bool status_
+    ) external;
 
     function updateServiceWallet(address newWallet_) external;
 }

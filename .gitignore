@@ -3,13 +3,16 @@ node_modules
 coverage
 coverage.json
 typechain
-typechain-types
 contracts.json
 keys.json
 .gitbook.yaml
 gas-report
+slither-results.json
+package-lock.json
 
 #Hardhat files
 cache
 artifacts
 deployments
+/typechain-types/
+\.deps

@@ -4,7 +4,6 @@ pragma solidity ^0.8.10;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-
 abstract contract ERC20Blacklist is ERC20, AccessControl {
     event DestroyBlackFunds(address _blackListedUser, uint _balance);
     event AddBlackList(address _user);

@@ -24,8 +24,8 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
 
     uint256 public constant DAY_TRESHOLD = 1 days;
 
-    uint256 public constant APPROX_LIQUIDATE_GAS = 66000;
-    uint256 public constant APPROX_SUBSCRIPTION_GAS = 18000;
+    uint256 public constant APPROX_LIQUIDATE_GAS = 1400000;
+    uint256 public constant APPROX_SUBSCRIPTION_GAS = 8000;
 
     bytes32 public constant SPECIAL_LIQUIDATOR = keccak256(abi.encodePacked("SPECIAL_LIQUIDATOR"));
 
@@ -34,7 +34,7 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
     mapping(address token => TokenInfo) public knownTokens;
 
     mapping(address user => UserInfo) public users;
-    mapping(address token => mapping(address user => int256 rate)) crtRate;
+    mapping(address token => mapping(address user => int256 rate)) public crtRate;
     mapping(address token => mapping(address user => int256 amount)) public balance;
 
     mapping(address token => mapping(address user => ContentCreatorInfo[] contentCreators)) public subscription;
@@ -62,7 +62,7 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
 
         chainPriceFeed = chainPriceFeed_;
 
-        grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function registrate(address refferer_, int48 rate_) external override {
@@ -83,16 +83,17 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
         uint256 amount_
     ) external override nonReentrant onlyUser onlyAcceptedToken(token_) {
         balance[token_][msg.sender] += int(amount_);
+        users[msg.sender].totalBalance += int(amount_);
 
         IERC20(token_).safeTransferFrom(msg.sender, address(this), amount_);
 
         emit Deposit(msg.sender, token_, amount_);
     }
 
-    function updateRate(int48 rate_) external override onlyUser {
+    function changeRate(int48 rate_) external override onlyUser {
         users[msg.sender].subRate = rate_;
 
-        emit UpdateRate(msg.sender, uint48(block.timestamp), rate_);
+        emit ChangeRate(msg.sender, uint48(block.timestamp), rate_);
     }
 
     function subscribe(
@@ -107,15 +108,17 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
 
         int48 crtContentCreatorRate = crtContentCreator.subRate;
 
-        require(
-            _isLiquidate(crtRate[token_][msg.sender] + int256(crtContentCreatorRate), msg.sender, token_),
-            "Payout: Top up your balance to subscribe to the author"
-        );
+        if (subscription[token_][msg.sender].length > 0) {
+            require(
+                subscription[token_][msg.sender][_contentCreatorIndex[token_][msg.sender][contentCreator_]].creator !=
+                    contentCreator_,
+                "Payout: You`ve already subscribed to the content creator"
+            );
+        }
 
         require(
-            subscription[token_][msg.sender][_contentCreatorIndex[token_][msg.sender][contentCreator_]].creator !=
-                contentCreator_,
-            "Payout: You`ve already subscribed to the content creator"
+            _isLiquidate(crtRate[token_][msg.sender] - int256(crtContentCreatorRate), msg.sender, token_) == false,
+            "Payout: Top up your balance to subscribe to the author"
         );
 
         ContentCreatorInfo memory crtContentCreatorInfo = ContentCreatorInfo(
@@ -124,8 +127,8 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
             crtContentCreatorRate
         );
 
+        _contentCreatorIndex[token_][msg.sender][contentCreator_] = subscription[token_][msg.sender].length;
         subscription[token_][msg.sender].push(crtContentCreatorInfo);
-        _contentCreatorIndex[token_][msg.sender][contentCreator_] = subscription[token_][msg.sender].length - 1;
 
         crtRate[token_][msg.sender] -= int256(crtContentCreatorRate);
         crtRate[token_][contentCreator_] += int256(crtContentCreatorRate);
@@ -144,7 +147,7 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
 
         require(contentCreator_ == crtCreatorInfo.creator, "Payout: User not subscribed to the content creator");
 
-        uint256 subscriptionLen = subscription[token_][msg.sender].length;
+        uint256 subscriptionLen = subscription[token_][msg.sender].length - 1;
 
         UserInfo storage crtUser = users[msg.sender];
         UserInfo storage crtContentCreator = users[contentCreator_];
@@ -157,10 +160,10 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
         crtRate[token_][msg.sender] += int256(crtContentCreatorRate);
         crtRate[token_][contentCreator_] -= int256(crtContentCreatorRate);
 
-        if (index == subscriptionLen - 1) {
+        if (index == subscriptionLen) {
             subscription[token_][msg.sender].pop();
         } else {
-            subscription[token_][msg.sender][index] = subscription[token_][msg.sender][subscriptionLen - 1];
+            subscription[token_][msg.sender][index] = subscription[token_][msg.sender][subscriptionLen];
             _contentCreatorIndex[token_][msg.sender][crtCreatorInfo.creator] = index;
             subscription[token_][msg.sender].pop();
         }
@@ -207,11 +210,11 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
         require(_isLiquidate(crtRate[token_][user_], user_, token_), "Payout: User can`t be liquidated");
 
         if (_isLegal(token_, user_) == false) {
-            require(hasRole(SPECIAL_LIQUIDATOR, msg.sender), "Payout: Wrong access");
-        }
+            require(hasRole(SPECIAL_LIQUIDATOR, msg.sender), "Payout: Only SPECIAL_LIQUIDATOR");    
+        }  
 
-        for (int i = int(subscription[token_][user_].length - 1); i >= 0; i--) {
-            address creatorAddr = subscription[token_][user_][uint(i)].creator;
+        for (uint i; i < subscription[token_][user_].length; i++) {
+            address creatorAddr = subscription[token_][user_][i].creator;
             UserInfo storage crtCreator = users[creatorAddr];
             _updateBalance(crtCreator, creatorAddr, token_);
 
@@ -221,8 +224,11 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
             subscription[token_][user_].pop();
         }
 
+        crtUser.totalBalance -= balance[token_][user_];
+
         balance[token_][msg.sender] += balance[token_][user_];
         balance[token_][user_] = 0;
+
         crtRate[token_][user_] = 0;
 
         emit Liquidate(user_, token_, uint48(block.timestamp));
@@ -230,7 +236,7 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
 
     function paymentViaVoucher(
         PayoutVoucherVerifier.Voucher calldata voucher
-    ) public onlyAcceptedToken(voucher.token) onlyExistCC(voucher.creator) {
+    ) public onlyAcceptedToken(voucher.token) onlyExistCC(voucher.user) onlyExistCC(voucher.creator) {
         _checkSignature(voucher);
 
         UserInfo storage crtUser = users[voucher.user];
@@ -239,30 +245,26 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
         _updateBalance(crtUser, voucher.user, voucher.token);
         _updateBalance(crtCreator, voucher.creator, voucher.token);
 
-        balance[voucher.token][voucher.user] -= int(voucher.amount);
-        balance[voucher.token][voucher.creator] += int(voucher.amount);
+        require(balance[voucher.token][voucher.user] > voucher.amount, "PAYOUT: Insufficial balance");
+
+        balance[voucher.token][voucher.user] -= voucher.amount;
+        crtUser.totalBalance -= voucher.amount;
+
+        balance[voucher.token][voucher.creator] += voucher.amount;
+        crtCreator.totalBalance += voucher.amount;
 
         emit PaymentViaVoucher(voucher.user, voucher.creator, voucher.token, voucher.amount);
     }
 
-    function addTokens(
-        address[] calldata tokens_,
-        uint8[] calldata decimals_,
-        address[] calldata priceFeeds_,
-        bool status_
-    ) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(tokens_.length == priceFeeds_.length, "Payout: Wrong argument length");
-
-        for (uint i; i < tokens_.length; i++) {
-            knownTokens[tokens_[i]] = TokenInfo(status_, decimals_[i], priceFeeds_[i]);
+    function balanceOf(address user_) external view returns (uint256) {
+        if (users[user_].totalBalance < 0) {
+            return 0;
         }
+
+        return uint256(users[user_].totalBalance);
     }
 
-    function updateServiceWallet(address newWallet_) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        serviceWallet = newWallet_;
-    }
-
-    function balanceOf(address token_, address user_) external view returns (int256 amount, uint48 timestamp) {
+    function tokenBalanceOf(address token_, address user_) external view returns (int256 amount, uint48 timestamp) {
         (amount, timestamp) = (balance[token_][user_], users[user_].updTimestamp);
     }
 
@@ -272,31 +274,31 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
         _updateBalance(crtUser_, user_, token_);
     }
 
-    function isLiquidate(
-        address token_,
-        address user_
-    ) external view override onlyAcceptedToken(token_) onlyExistCC(user_) returns (bool) {
-        return _isLiquidate(crtRate[token_][user_], user_, token_);
-    }
-
     function getTokenStatus(address token_) external view returns (bool) {
         return knownTokens[token_].status;
     }
 
+    function updateServiceWallet(address newWallet_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        serviceWallet = newWallet_;
+    }
+
+    function addTokens(
+        address[] calldata priceFeeds_,
+        address[] calldata tokens_,
+        bool status_
+    ) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(tokens_.length == priceFeeds_.length, "Payout: Wrong argument length");
+
+        for (uint i; i < tokens_.length; i++) {
+            knownTokens[tokens_[i]] = TokenInfo(status_, priceFeeds_[i]);
+        }
+    }
+
     function _updateBalance(UserInfo storage crtUser_, address user_, address token_) internal {
         if (crtRate[token_][user_] != 0) {
-            int amount;
-            unchecked {
-                if (crtRate[token_][user_] > 0) {
-                    amount = crtRate[token_][user_] * int(int48(uint48(block.timestamp) - crtUser_.updTimestamp));
-                    balance[token_][user_] += amount;
-                } else {
-                    amount =
-                        (crtRate[token_][user_] * -1) *
-                        int(int48(uint48(block.timestamp) - crtUser_.updTimestamp));
-                    balance[token_][user_] -= amount;
-                }
-            }
+            int amount = crtRate[token_][user_] * int(int48(uint48(block.timestamp) - crtUser_.updTimestamp));
+            balance[token_][user_] += amount;
+            crtUser_.totalBalance += amount;
         }
 
         crtUser_.updTimestamp = uint48(block.timestamp);
@@ -304,8 +306,7 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
 
     function _isLiquidate(int userRate_, address user_, address token_) internal view returns (bool) {
         if (userRate_ < 0) {
-            int amount = (userRate_ * -1) * 1 days;
-            if (amount > balance[token_][user_]) {
+            if (((userRate_ * -1) * 1 days) > balance[token_][user_]) {
                 return true;
             }
         }
@@ -321,23 +322,25 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
     function _isLegal(address token_, address user_) internal view returns (bool) {
         TokenInfo memory crtTokenInfo = knownTokens[token_];
 
-        int256 tokenPrice;
-       
+        int256 userTokenPrice;
+        uint8 userTokenDecimals;
+
         int256 chainTokenPrice;
         uint8 chainTokenDecimals;
 
-        (, tokenPrice, , , ) = AggregatorV3Interface(crtTokenInfo.priceFeed).latestRoundData();
-        
+        (, userTokenPrice, , , ) = AggregatorV3Interface(crtTokenInfo.priceFeed).latestRoundData();
+        userTokenDecimals = AggregatorV3Interface(crtTokenInfo.priceFeed).decimals();
+
         (, chainTokenPrice, , , ) = AggregatorV3Interface(chainPriceFeed).latestRoundData();
         chainTokenDecimals = AggregatorV3Interface(chainPriceFeed).decimals();
 
-        uint256 predictedPrice = tx.gasprice *
-            (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * subscription[token_][user_].length);
+        uint256 predictedPrice = (block.basefee *
+            (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * subscription[token_][user_].length)) / 1e9;
 
         uint256 transactionCostInETH = (uint(chainTokenPrice) * predictedPrice) / chainTokenDecimals;
-        uint256 userBalanceInETH = uint(tokenPrice * balance[token_][user_]) / crtTokenInfo.decimals;
+        int256 userBalanceInETH = (userTokenPrice * balance[token_][user_]) / int(int8(userTokenDecimals));
 
-        if (transactionCostInETH > userBalanceInETH) {
+        if (int(transactionCostInETH) > userBalanceInETH) {
             return false;
         }
 
