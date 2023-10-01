@@ -90,8 +90,8 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
     uint256 public constant PROTOCOL_FEE_WITH_REFFERAL = 1500; // 15%
     uint256 public constant REFFERAL_FEE = 500; // 5%
 
-    uint256 public constant APPROX_LIQUIDATE_GAS = 1; //1400000 need to check it in tests
-    uint256 public constant APPROX_SUBSCRIPTION_GAS = 1; //8000 need to check it in tests
+    uint256 public constant APPROX_LIQUIDATE_GAS = 120000;
+    uint256 public constant APPROX_SUBSCRIPTION_GAS = 8000; 
 
     bytes32 public constant SPECIAL_LIQUIDATOR = keccak256(abi.encodePacked("SPECIAL_LIQUIDATOR_ROLE"));
 
