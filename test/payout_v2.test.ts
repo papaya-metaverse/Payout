@@ -62,7 +62,7 @@ describe("PayoutV2", function () {
         return block.timestamp
     }
 
-    async function signPaymentChannelVoucher(
+    async function signVoucher(
         signer: SignerWithAddress,
         user: string,
         creator: string,
@@ -325,48 +325,48 @@ describe("PayoutV2", function () {
         })
     })
 
-    describe("Method: paymentViaVoucher", function() {
-        it("Negative", async () => {
-            await baseSetup()
+    // describe("Method: paymentViaVoucher", function() {
+    //     it("Negative", async () => {
+    //         await baseSetup()
 
-            const voucher = await signPaymentChannelVoucher(
-                user,
-                user.address,
-                creator.address,
-                token.address,
-                BigNumber.from(FIVE_USDT)
-            )
+    //         const voucher = await signVoucher(
+    //             user,
+    //             user.address,
+    //             creator.address,
+    //             token.address,
+    //             BigNumber.from(FIVE_USDT)
+    //         )
 
-            await expect(payout.paymentViaVoucher(voucher)).to.be.revertedWith("Payout: Wrong Token")
+    //         await expect(payout.paymentViaVoucher(voucher)).to.be.revertedWith("Payout: Wrong Token")
 
-            await payout.addTokens([priceFeed.address], [token.address], true)
+    //         await payout.addTokens([priceFeed.address], [token.address], true)
 
-            await expect(payout.paymentViaVoucher(voucher)).to.be.revertedWith("Payout: User not exist")
+    //         await expect(payout.paymentViaVoucher(voucher)).to.be.revertedWith("Payout: User not exist")
 
-            await payout.connect(user).registrate(ZERO_ADDRESS, SUB_RATE)
+    //         await payout.connect(user).registrate(ZERO_ADDRESS, SUB_RATE)
 
-            await expect(payout.paymentViaVoucher(voucher)).to.be.revertedWith("Payout: User not exist")
+    //         await expect(payout.paymentViaVoucher(voucher)).to.be.revertedWith("Payout: User not exist")
 
-            await payout.connect(creator).registrate(ZERO_ADDRESS, SUB_RATE)
-        })
+    //         await payout.connect(creator).registrate(ZERO_ADDRESS, SUB_RATE)
+    //     })
 
-        it("Positive", async () => {
-            await token.transfer(user.address, SIX_USDT * 2)
-            await token.connect(user).approve(payout.address, SIX_USDT * 2)
-            await payout.connect(user).deposit(token.address, SIX_USDT * 2)
+    //     it("Positive", async () => {
+    //         await token.transfer(user.address, SIX_USDT * 2)
+    //         await token.connect(user).approve(payout.address, SIX_USDT * 2)
+    //         await payout.connect(user).deposit(token.address, SIX_USDT * 2)
 
-            const voucher = await signPaymentChannelVoucher(
-                user,
-                user.address,
-                creator.address,
-                token.address,
-                BigNumber.from(FIVE_USDT)
-            )
+    //         const voucher = await signVoucher(
+    //             user,
+    //             user.address,
+    //             creator.address,
+    //             token.address,
+    //             BigNumber.from(FIVE_USDT)
+    //         )
 
-            await payout.paymentViaVoucher(voucher)
+    //         await payout.paymentViaVoucher(voucher)
 
-            expect((await payout.balanceOf(user.address)).toNumber()).to.be.eq(SIX_USDT * 2 - FIVE_USDT)
-            expect((await payout.balanceOf(creator.address)).toNumber()).to.be.eq(FIVE_USDT)
-        })
-    })
+    //         expect((await payout.balanceOf(user.address)).toNumber()).to.be.eq(SIX_USDT * 2 - FIVE_USDT)
+    //         expect((await payout.balanceOf(creator.address)).toNumber()).to.be.eq(FIVE_USDT)
+    //     })
+    // })
 })

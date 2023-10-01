@@ -25,6 +25,12 @@ export interface networkConfigItem {
         serviceWallet?: Address
         chainPriceFeed?: Address
     },
+    payoutV2R: {
+        serviceWallet?: Address
+        chainPriceFeed?: Address
+        tokenPriceFeed?: Address
+        token?: Address
+    }
 }
 
 export interface networkConfigInfo {
@@ -41,8 +47,14 @@ export const networkConfig: networkConfigInfo = {
         },
         payoutV2: {
             serviceWallet: getEnv('PUBLIC_KEY_SERVICE_WALLET'),
-            chainPriceFeed: getEnv('PUBLIC_KEY_PRICE_FEED')
+            chainPriceFeed: getEnv('PUBLIC_KEY_CHAIN_PRICE_FEED')
         },
+        payoutV2R: {
+            serviceWallet: getEnv('PUBLIC_KEY_SERVICE_WALLET'),
+            chainPriceFeed: getEnv('PUBLIC_KEY_CHAIN_PRICE_FEED'),
+            tokenPriceFeed: getEnv('PUBLIC_KEY_TOKEN_PRICE_FEED'),
+            token: getEnv('PUBLIC_KEY_TOKEN')
+        }
     },
     bsc_testnet: {
         aya: {
@@ -53,8 +65,14 @@ export const networkConfig: networkConfigInfo = {
         },
         payoutV2: {
             serviceWallet: getEnv('PUBLIC_KEY_SERVICE_WALLET'),
-            chainPriceFeed: getEnv('PUBLIC_KEY_PRICE_FEED')
+            chainPriceFeed: getEnv('PUBLIC_KEY_CHAIN_PRICE_FEED')
         },
+        payoutV2R: {
+            serviceWallet: getEnv('PUBLIC_KEY_SERVICE_WALLET'),
+            chainPriceFeed: getEnv('PUBLIC_KEY_CHAIN_PRICE_FEED'),
+            tokenPriceFeed: getEnv('PUBLIC_KEY_TOKEN_PRICE_FEED'),
+            token: getEnv('PUBLIC_KEY_TOKEN')
+        }
     },
     bsc_mainnet: {
         aya: {
@@ -65,8 +83,14 @@ export const networkConfig: networkConfigInfo = {
         },
         payoutV2: {
             serviceWallet: getEnv('PUBLIC_KEY_SERVICE_WALLET'),
-            chainPriceFeed: getEnv('PUBLIC_KEY_PRICE_FEED')
+            chainPriceFeed: getEnv('PUBLIC_KEY_CHAIN_PRICE_FEED')
         },
+        payoutV2R: {
+            serviceWallet: getEnv('PUBLIC_KEY_SERVICE_WALLET'),
+            chainPriceFeed: getEnv('PUBLIC_KEY_CHAIN_PRICE_FEED'),
+            tokenPriceFeed: getEnv('PUBLIC_KEY_TOKEN_PRICE_FEED'),
+            token: getEnv('PUBLIC_KEY_TOKEN')
+        }
     },
     hardhat: {
         aya: {
@@ -77,8 +101,14 @@ export const networkConfig: networkConfigInfo = {
         },
         payoutV2: {
             serviceWallet: getEnv('PUBLIC_KEY_SERVICE_WALLET'),
-            chainPriceFeed: getEnv('PUBLIC_KEY_PRICE_FEED')
+            chainPriceFeed: getEnv('PUBLIC_KEY_CHAIN_PRICE_FEED')
         },
+        payoutV2R: {
+            serviceWallet: getEnv('PUBLIC_KEY_SERVICE_WALLET'),
+            chainPriceFeed: getEnv('PUBLIC_KEY_CHAIN_PRICE_FEED'),
+            tokenPriceFeed: getEnv('PUBLIC_KEY_TOKEN_PRICE_FEED'),
+            token: getEnv('PUBLIC_KEY_TOKEN')
+        }
     }
 }
 

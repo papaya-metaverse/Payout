@@ -36,6 +36,7 @@
     "typescript": "^4.9.5"
   },
   "dependencies": {
+    "@1inch/solidity-utils": "^3.0.1",
     "eccrypto": "^1.1.6",
     "hardhat-storage-layout": "^0.1.7",
     "hardhat-watcher": "^2.5.0",

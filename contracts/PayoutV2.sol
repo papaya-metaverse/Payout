@@ -9,9 +9,9 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 import "./interfaces/IPayoutV2.sol";
-import "./abstract/PayoutVoucherVerifier.sol";
+import "./abstract/PayoutSigVerifier.sol";
 
-contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, ReentrancyGuard {
+contract PayoutV2 is IPayoutV2, PayoutSigVerifier, AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     address public immutable chainPriceFeed;
@@ -234,27 +234,27 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
         emit Liquidate(user_, token_, uint48(block.timestamp));
     }
 
-    function paymentViaVoucher(
-        PayoutVoucherVerifier.Voucher calldata voucher
-    ) public onlyAcceptedToken(voucher.token) onlyExistCC(voucher.user) onlyExistCC(voucher.creator) {
-        _checkSignature(voucher);
+    // function paymentViaVoucher(
+    //     PayoutSigVerifier.Payment calldata voucher
+    // ) public onlyAcceptedToken(voucher.token) onlyExistCC(voucher.user) onlyExistCC(voucher.creator) {
+    //     _checkSignature(voucher);
 
-        UserInfo storage crtUser = users[voucher.user];
-        UserInfo storage crtCreator = users[voucher.creator];
+    //     UserInfo storage crtUser = users[voucher.user];
+    //     UserInfo storage crtCreator = users[voucher.creator];
 
-        _updateBalance(crtUser, voucher.user, voucher.token);
-        _updateBalance(crtCreator, voucher.creator, voucher.token);
+    //     _updateBalance(crtUser, voucher.user, voucher.token);
+    //     _updateBalance(crtCreator, voucher.creator, voucher.token);
 
-        require(balance[voucher.token][voucher.user] > voucher.amount, "PAYOUT: Insufficial balance");
+    //     require(balance[voucher.token][voucher.user] > voucher.amount, "PAYOUT: Insufficial balance");
 
-        balance[voucher.token][voucher.user] -= voucher.amount;
-        crtUser.totalBalance -= voucher.amount;
+    //     balance[voucher.token][voucher.user] -= voucher.amount;
+    //     crtUser.totalBalance -= voucher.amount;
 
-        balance[voucher.token][voucher.creator] += voucher.amount;
-        crtCreator.totalBalance += voucher.amount;
+    //     balance[voucher.token][voucher.creator] += voucher.amount;
+    //     crtCreator.totalBalance += voucher.amount;
 
-        emit PaymentViaVoucher(voucher.user, voucher.creator, voucher.token, voucher.amount);
-    }
+    //     emit PaymentViaVoucher(voucher.user, voucher.creator, voucher.token, voucher.amount);
+    // }
 
     function balanceOf(address user_) external view returns (uint256) {
         if (users[user_].totalBalance < 0) {
@@ -306,6 +306,7 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
 
     function _isLiquidate(int userRate_, address user_, address token_) internal view returns (bool) {
         if (userRate_ < 0) {
+            //userRate_ * 1 days < balance[token_][user_]
             if (((userRate_ * -1) * 1 days) > balance[token_][user_]) {
                 return true;
             }
@@ -314,10 +315,10 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
         return false;
     }
 
-    function _checkSignature(PayoutVoucherVerifier.Voucher calldata voucher_) internal {
-        address signer = verify(voucher_);
-        require(signer == voucher_.user, "Payout: Signature invalid or unauthorized");
-    }
+    // function _checkSignature(PayoutSigVerifier.Payment calldata voucher_) internal {
+    //     address signer = verify(voucher_);
+    //     require(signer == voucher_.user, "Payout: Signature invalid or unauthorized");
+    // }
 
     function _isLegal(address token_, address user_) internal view returns (bool) {
         TokenInfo memory crtTokenInfo = knownTokens[token_];
@@ -334,8 +335,8 @@ contract PayoutV2 is IPayoutV2, PayoutVoucherVerifier, AccessControl, Reentrancy
         (, chainTokenPrice, , , ) = AggregatorV3Interface(chainPriceFeed).latestRoundData();
         chainTokenDecimals = AggregatorV3Interface(chainPriceFeed).decimals();
 
-        uint256 predictedPrice = tx.gasprice *
-            (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * subscription[token_][user_].length);
+        uint256 predictedPrice = (block.basefee *
+            (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * subscription[token_][user_].length)) / 1e9;
 
         uint256 transactionCostInETH = (uint(chainTokenPrice) * predictedPrice) / chainTokenDecimals;
         int256 userBalanceInETH = (userTokenPrice * balance[token_][user_]) / int(int8(userTokenDecimals));

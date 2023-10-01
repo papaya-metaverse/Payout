@@ -12,7 +12,7 @@ contract PriceFeed is AggregatorV3Interface {
     }
 
     //As mock smart-contract we used MATIC/USD pair
-    function description() external view returns (string memory) {
+    function description() external pure returns (string memory) {
         return "MATIC/USD";
     }
 
@@ -30,7 +30,7 @@ contract PriceFeed is AggregatorV3Interface {
 
     function latestRoundData()
         external
-        view
+        pure
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
         roundId = 0;
