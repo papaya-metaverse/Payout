@@ -15,10 +15,8 @@ interface IPayoutV2R {
     function deposit(uint amount_) external;
     function changeSubscribeRate(uint48 rate_) external;
     function subscribe(address author_) external;
-    function unsubscribe(address author_) external;
     function withdraw(uint amount_) external;
     function liquidate(address account_) external;
-
     function balanceOf(address account_) external returns(uint);
     
     function updateServiceWallet(address newWallet_) external;

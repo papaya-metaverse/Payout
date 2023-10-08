@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.19;
 
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 abstract contract PayoutSigVerifier is EIP712 {
     struct Payment {
@@ -21,11 +21,7 @@ abstract contract PayoutSigVerifier is EIP712 {
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
 
     function getChainID() external view returns (uint256) {
-        uint256 id;
-        assembly {
-            id := chainid()
-        }
-        return id;
+        return block.chainid;
     }
 
     function _hash(Payment calldata payment) internal view returns (bytes32) {
@@ -44,10 +40,10 @@ abstract contract PayoutSigVerifier is EIP712 {
             );
     }
 
-    function verify(Payment calldata payment, bytes32 r, bytes32 vs) internal returns (address) {
+    function verify(Payment calldata payment, bytes memory rvs) internal returns (bool) {
         require(payment.nonce == nonces[payment.spender], "_verify: invalid nonce");
         nonces[payment.spender]++;
 
-        return ECDSA.recover(_hash(payment), r, vs);
+        return SignatureChecker.isValidSignatureNow(payment.spender, _hash(payment), rvs);
     }
 }
