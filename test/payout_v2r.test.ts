@@ -10,7 +10,6 @@ const ZERO_ADDRESS = ethers.constants.AddressZero
 
 const DAY = 86400
 const FIVE_USDT = 5000000
-const ONE_USDT = 1000000
 const SIX_USDT = 6000000
 const SUB_RATE = Math.round(FIVE_USDT / DAY)
 
@@ -103,22 +102,16 @@ describe("PayoutV2R", function() {
     })
 
     describe("Method: registrate", function () {
-        it("Negative", async () => {
-            await baseSetup()
-
-            await expect((payout.connect(user).registrate(user.address, SUB_RATE))).to.be.revertedWith("Payout: User not exist")
-        })
-
         it("Positive", async () => {
             await baseSetup()
 
-            await payout.connect(refferer).registrate(ZERO_ADDRESS, SUB_RATE)
+            await payout.connect(refferer).registrate(SUB_RATE)
 
-            expect((await payout.users(refferer.address))[2]).to.be.eq(await timestamp())
+            expect((await payout.users(refferer.address))[1]).to.be.eq(await timestamp())
         })
 
         it("Negative", async () => {
-            await expect(payout.connect(refferer).registrate(ZERO_ADDRESS, SUB_RATE)).to.be.revertedWith("Payout: User already exist")
+            await expect(payout.connect(refferer).registrate(SUB_RATE)).to.be.revertedWithCustomError(payout, "UserAlreadyExist")
         })
     })
 
@@ -139,13 +132,13 @@ describe("PayoutV2R", function() {
         it("Positive", async() => {
             await baseSetup()
 
-            await payout.connect(user).registrate(ZERO_ADDRESS, SUB_RATE)
+            await payout.connect(user).registrate(SUB_RATE)
 
-            expect((await payout.users(user.address)).subValue).to.be.eq(BigNumber.from(SUB_RATE))
+            expect((await payout.users(user.address)).subscriptionRate).to.be.eq(BigNumber.from(SUB_RATE))
 
-            await payout.connect(user).changeSubscribeRate(0)
+            await payout.connect(user).changeSubscriptionRate(0)
 
-            expect((await payout.users(user.address)).subValue).to.be.eq(BigNumber.from(0))
+            expect((await payout.users(user.address)).subscriptionRate).to.be.eq(BigNumber.from(0))
         })
     })
 
@@ -153,16 +146,16 @@ describe("PayoutV2R", function() {
         it("Negative", async() => {
             await baseSetup()
 
-            await expect(payout.connect(user).subscribe(creator.address)).to.be.revertedWith("Payout: User not exist")
+            await expect(payout.connect(user).subscribe(creator.address)).to.be.revertedWithCustomError(payout, "UserNotExist")
 
-            await payout.connect(user).registrate(ZERO_ADDRESS, SUB_RATE)
+            await payout.connect(user).registrate(SUB_RATE)
         })
 
         it("Positive", async() => {
-            await payout.connect(creator).registrate(ZERO_ADDRESS, SUB_RATE)
-            await payout.connect(refferer).registrate(ZERO_ADDRESS, SUB_RATE)
+            await payout.connect(creator).registrate(SUB_RATE)
+            await payout.connect(refferer).registrate(SUB_RATE)
 
-            await expect(payout.connect(user).subscribe(creator.address)).to.be.rejectedWith("Payout: Top up your balance")
+            await expect(payout.connect(user).subscribe(creator.address)).to.be.revertedWithCustomError(payout, "TopUpBalance")
 
             await token.transfer(user.address, SIX_USDT)
             await token.connect(user).approve(payout.address, SIX_USDT)
@@ -178,12 +171,11 @@ describe("PayoutV2R", function() {
             //2 - timestamp
             expect(events[0].args[0]).to.be.eq(user.address)
             expect(events[0].args[1]).to.be.eq(creator.address)
-            expect(events[0].args[2]).to.be.eq(await timestamp())
 
-            expect((await payout.users(user.address)).currRate).to.be.eq(SUB_RATE * -1)
-            expect((await payout.users(creator.address)).currRate).to.be.eq(SUB_RATE)
+            expect((await payout.users(user.address)).currentRate).to.be.eq(SUB_RATE * -1)
+            expect((await payout.users(creator.address)).currentRate).to.be.eq(SUB_RATE)
 
-            await expect(payout.connect(user).subscribe(refferer.address)).to.be.revertedWith("Payout: Top up your balance")
+            await expect(payout.connect(user).subscribe(refferer.address)).to.be.revertedWithCustomError(payout, "TopUpBalance")
         })
     })
 
@@ -191,15 +183,15 @@ describe("PayoutV2R", function() {
         it("Negative", async() => {
             await baseSetup()
 
-            await expect(payout.connect(user).unsubscribe(creator.address)).to.be.revertedWith("Payout: You not subscribed to the author")
+            await expect(payout.connect(user).unsubscribe(creator.address)).to.be.revertedWithCustomError(payout, "NotSubscribed")
 
-            await payout.connect(user).registrate(ZERO_ADDRESS, SUB_RATE)
+            await payout.connect(user).registrate(SUB_RATE)
         })
 
         it("Positive", async() => {
-            await payout.connect(creator).registrate(ZERO_ADDRESS, SUB_RATE)
+            await payout.connect(creator).registrate(SUB_RATE)
 
-            await expect(payout.connect(user).unsubscribe(creator.address)).to.be.revertedWith("Payout: You not subscribed to the author")
+            await expect(payout.connect(user).unsubscribe(creator.address)).to.be.revertedWithCustomError(payout, "NotSubscribed")
 
             await token.transfer(user.address, SIX_USDT)
             await token.connect(user).approve(payout.address, SIX_USDT)
@@ -222,7 +214,7 @@ describe("PayoutV2R", function() {
 
             let payment = await signSignature(user, user.address, creator.address, BigNumber.from(SIX_USDT), BigNumber.from(0))
             
-            await expect(payout.connect(user).payBySig(payment, payment.signature)).to.be.revertedWith("Payout: Insufficial balance")
+            await expect(payout.connect(user).payBySig(payment, payment.signature)).to.be.revertedWithCustomError(payout, "InsufficialBalance")
         })
 
         it("Positive", async() => {
@@ -244,9 +236,9 @@ describe("PayoutV2R", function() {
         it("Negative", async() => {
             await baseSetup()
 
-            await payout.connect(user).registrate(ZERO_ADDRESS, SUB_RATE)
+            await payout.connect(user).registrate(SUB_RATE)
 
-            await expect(payout.connect(user).withdraw(FIVE_USDT)).to.be.revertedWith("Payout: Insufficial balance")
+            await expect(payout.connect(user).withdraw(FIVE_USDT, ZERO_ADDRESS)).to.be.revertedWithCustomError(payout, "InsufficialBalance")
         })
 
         it("Positive", async() => {
@@ -254,7 +246,7 @@ describe("PayoutV2R", function() {
             await token.connect(user).approve(payout.address, SIX_USDT)
             await payout.connect(user).deposit(SIX_USDT)
 
-            await payout.connect(user).withdraw(FIVE_USDT)
+            await payout.connect(user).withdraw(FIVE_USDT, ZERO_ADDRESS)
 
             expect(await token.balanceOf(user.address)).to.be.eq(BigNumber.from((FIVE_USDT * 80) / 100))
         })
@@ -264,14 +256,14 @@ describe("PayoutV2R", function() {
         it("Negative", async() => {
             await baseSetup()
 
-            await expect(payout.connect(creator).liquidate(user.address)).to.be.revertedWith("Payout: User can`t be liquidated")
+            await expect(payout.connect(creator).liquidate(user.address)).to.be.revertedWithCustomError(payout, "NotLiquidatable")
         
-            await payout.connect(user).registrate(ZERO_ADDRESS, SUB_RATE)
+            await payout.connect(user).registrate(SUB_RATE)
 
-            await expect(payout.connect(creator).liquidate(user.address)).to.be.revertedWith("Payout: User can`t be liquidated")
+            await expect(payout.connect(creator).liquidate(user.address)).to.be.revertedWithCustomError(payout, "NotLiquidatable")
 
-            await payout.connect(creator).registrate(ZERO_ADDRESS, SUB_RATE)
-            await payout.connect(refferer).registrate(ZERO_ADDRESS, SUB_RATE)
+            await payout.connect(creator).registrate(SUB_RATE)
+            await payout.connect(refferer).registrate(SUB_RATE)
         
             await token.transfer(user.address, SIX_USDT)
             await token.connect(user).approve(payout.address, SIX_USDT)
@@ -279,7 +271,7 @@ describe("PayoutV2R", function() {
 
             await payout.connect(user).subscribe(creator.address)
 
-            await expect(payout.connect(creator).liquidate(user.address)).to.be.revertedWith("Payout: User can`t be liquidated")
+            await expect(payout.connect(creator).liquidate(user.address)).to.be.revertedWithCustomError(payout, "NotLiquidatable")
         })
 
         it("Positive", async() => {

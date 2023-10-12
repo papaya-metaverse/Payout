@@ -14,25 +14,30 @@ import "./interfaces/IPayoutV2R.sol";
 import "./abstract/PayoutSigVerifier.sol";
 
 library UserLib {
+    error TopUpBalance();
+    error InsufficialBalance();
+    error ReduceTheAmount();
+
     struct User {
-        address refferer;
-        uint48 subValue;
+        uint48 subscriptionRate;
         uint48 updTimestamp;
 
-        int currRate;
+        int currentRate;
         int balance;
     }
 
     function increaseRate(User storage user, uint48 diff) internal {
         _syncBalance(user);
-        user.currRate += int48(diff);
+        user.currentRate += int48(diff);
     }
 
     function decreaseRate(User storage user, uint48 diff) internal {
         _syncBalance(user);
-        user.currRate -= int48(diff);
+        user.currentRate -= int48(diff);
 
-        require(_isLiquidatable(user) == false, "Payout: Top up your balance");
+        if(_isLiquidatable(user)) {
+            revert TopUpBalance();
+        }
     }  
 
     function increaseBalance(User storage user, uint amount) internal {
@@ -40,12 +45,16 @@ library UserLib {
     }
 
     function decreaseBalance(User storage user, uint amount) internal {
-        _syncBalance(user);  
-        require(user.balance > int(amount), "Payout: Insufficial balance");
+        _syncBalance(user);
+        if(user.balance < int(amount)) {
+            revert InsufficialBalance();
+        }  
 
         user.balance -= int(amount);
 
-        require(_isLiquidatable(user) == false, "Payout: Reduce the amount");
+        if(_isLiquidatable(user)) {
+            revert ReduceTheAmount();
+        }
     }
 
     function isLiquidatable(User storage user) internal returns(bool) {
@@ -58,25 +67,25 @@ library UserLib {
         liquidator.balance += user.balance;
 
         user.balance = 0;
-        user.currRate = 0; 
+        user.currentRate = 0; 
     }
 
     function _syncBalance(User storage user) private {
-        if(user.currRate != 0 && user.updTimestamp != uint48(block.timestamp)) {
+        if(user.currentRate != 0 && user.updTimestamp != uint48(block.timestamp)) {
             user.balance = _balanceOf(user);
             user.updTimestamp = uint48(block.timestamp);
         }
     }
 
     function _isLiquidatable(User memory user) private pure returns(bool) {       
-        return user.currRate < 0 && (user.currRate * -1) * 1 days > user.balance;
+        return user.currentRate < 0 && (user.currentRate * -1) * 1 days > user.balance;
     }
 
     function _balanceOf(User memory user) internal view returns (int) {
-        if(user.currRate == 0 || user.updTimestamp == uint48(block.timestamp)) {
+        if(user.currentRate == 0 || user.updTimestamp == uint48(block.timestamp)) {
             return user.balance;
         }
-        return user.balance + user.currRate * int(int48(uint48(block.timestamp) - user.updTimestamp));
+        return user.balance + user.currentRate * int(int48(uint48(block.timestamp) - user.updTimestamp));
     }
 }
 
@@ -85,30 +94,31 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
     using UserLib for UserLib.User;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    AggregatorV3Interface public immutable chainPriceFeed;
-    AggregatorV3Interface public immutable tokenPriceFeed;
-
-    address public immutable token;
-
     uint256 public constant FLOOR = 10000;          // 100%
     uint256 public constant USER_FEE = 8000;        // 80%
     uint256 public constant PROTOCOL_FEE = 2000;    // 20%
     uint256 public constant REFFERAL_FEE = 500;     // 5%
     uint256 public constant PROTOCOL_FEE_WITH_REFFERAL = PROTOCOL_FEE - REFFERAL_FEE;
 
-    uint256 public constant APPROX_LIQUIDATE_GAS = 120000;
+    uint256 public constant APPROX_LIQUIDATE_GAS = 110000;
     uint256 public constant APPROX_SUBSCRIPTION_GAS = 8000; 
 
     bytes32 public constant SPECIAL_LIQUIDATOR_ROLE = keccak256(abi.encodePacked("SPECIAL_LIQUIDATOR_ROLE"));
 
-    address public serviceWallet;
+    AggregatorV3Interface public immutable chainPriceFeed;
+    AggregatorV3Interface public immutable tokenPriceFeed;
+
+    IERC20 public immutable token;
 
     mapping(address account => UserLib.User) public users;
     mapping(address account => EnumerableMap.AddressToUintMap) private subscriptions;
 
+    address public serviceWallet;
+    uint256 public totalBalance;
+
     modifier onlyExistUser(address account) {
-        if(account != address(0)) {
-            require(users[account].updTimestamp > 0, "Payout: User not exist");
+        if(account != address(0) && users[account].updTimestamp == 0) {
+            revert UserNotExist();
         }
         _;
     }
@@ -117,39 +127,41 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
         chainPriceFeed = AggregatorV3Interface(chainPriceFeed_);
         tokenPriceFeed = AggregatorV3Interface(tokenPriceFeed_);
 
-        token = token_;
+        token = IERC20(token_);
 
         serviceWallet = serviceWallet_;
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function registrate(address refferer_, uint48 subValue_) external override onlyExistUser(refferer_) {
-        require(users[msg.sender].updTimestamp == 0, "Payout: User already exist");
+    function registrate(uint48 subscriptionRate) external override {
+        if(users[msg.sender].updTimestamp != 0) {
+            revert UserAlreadyExist();
+        }
 
         users[msg.sender] = UserLib.User({
-            refferer: refferer_,
-            subValue: subValue_,
+            subscriptionRate: subscriptionRate,
             updTimestamp: uint48(block.timestamp),
-            currRate: 0,
+            currentRate: 0,
             balance: 0
         });
 
-        emit Registrate(msg.sender, refferer_, uint48(block.timestamp));
+        emit Registrate(msg.sender);
     }
 
     function deposit(uint amount) external override nonReentrant {
         users[msg.sender].increaseBalance(amount);
+        totalBalance += amount;
 
-        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        token.safeTransferFrom(msg.sender, address(this), amount);
 
         emit Deposit(msg.sender, amount);
     }
 
-    function changeSubscribeRate(uint48 rate) external override onlyExistUser(msg.sender) {
-        users[msg.sender].subValue = rate;
+    function changeSubscriptionRate(uint48 subscriptionRate) external override onlyExistUser(msg.sender) {
+        users[msg.sender].subscriptionRate = subscriptionRate;
 
-        emit ChangeSubscribeRate(msg.sender, uint48(block.timestamp), rate);
+        emit ChangeSubscriptionRate(msg.sender, subscriptionRate);
     }
 
     function balanceOf(address account) external override view returns(uint) {
@@ -158,31 +170,27 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
 
     function subscribe(address author) external override onlyExistUser(msg.sender) {
         if(subscriptions[msg.sender].contains(author)) {
-            unsubscribe(author);
-        }
+            _unsubscribe(author);
+        } 
+        
+        uint48 subscriptionRate = users[author].subscriptionRate;
 
-        uint48 contentCreatorRate = users[author].subValue;
+        users[msg.sender].decreaseRate(subscriptionRate);
+        users[author].increaseRate(subscriptionRate);
 
-        users[msg.sender].decreaseRate(contentCreatorRate);
-        users[author].increaseRate(contentCreatorRate);
+        subscriptions[msg.sender].set(author, uint(subscriptionRate));
 
-        subscriptions[msg.sender].set(author, uint(contentCreatorRate));
-
-        emit Subscribe(msg.sender, author, uint48(block.timestamp));
+        emit Subscribe(msg.sender, author);
     }
 
     function unsubscribe(address author) public {
-        require(subscriptions[msg.sender].contains(author), 
-            "Payout: You not subscribed to the author");
+        if(subscriptions[msg.sender].contains(author) == false) {
+            revert NotSubscribed();
+        }
 
-        uint48 contentCreatorRate = uint48(subscriptions[msg.sender].get(author));
+        _unsubscribe(author);
 
-        users[msg.sender].increaseRate(contentCreatorRate);
-        users[author].decreaseRate(contentCreatorRate);
-
-        subscriptions[msg.sender].remove(author);
-
-        emit Unsubscribe(msg.sender, author, uint48(block.timestamp));
+        emit Unsubscribe(msg.sender, author);
     }
 
     function payBySig(Payment calldata payment, bytes memory rvs) external {
@@ -196,33 +204,37 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
         emit PayBySig(msg.sender, payment.spender, payment.receiver, payment.amount);
     }
 
-    function withdraw(uint256 amount) external override nonReentrant {
-        users[msg.sender].decreaseBalance(amount);
-
+    function withdraw(uint256 amount, address refferer) external override nonReentrant {
         uint256 totalAmount = (amount * USER_FEE) / FLOOR;
         uint256 protocolFee;
 
-        if (users[msg.sender].refferer == address(0)) {
+        if (refferer == address(0)) {
             protocolFee = (amount * PROTOCOL_FEE) / FLOOR;
         } else {
             protocolFee = (amount * PROTOCOL_FEE_WITH_REFFERAL) / FLOOR;
-            users[users[msg.sender].refferer].increaseBalance((amount * REFFERAL_FEE) / FLOOR);
+            users[refferer].increaseBalance((amount * REFFERAL_FEE) / FLOOR);
         }
 
+        users[msg.sender].decreaseBalance(amount);
         users[serviceWallet].increaseBalance(protocolFee);
 
-        IERC20(token).safeTransfer(msg.sender, totalAmount);
+        totalBalance -= amount;
 
-        emit Withdraw(msg.sender, amount, uint48(block.timestamp));
+        token.safeTransfer(msg.sender, totalAmount);
+
+        emit Withdraw(msg.sender, amount);
     }
 
     function liquidate(address account) external override {
         UserLib.User storage user = users[account];
 
-        require(user.isLiquidatable(), "Payout: User can`t be liquidated");
+        if(user.isLiquidatable() == false) {
+            revert NotLiquidatable();
+        }
 
-        if(_isLegal(user.balance, account) == false) {
-            require(hasRole(SPECIAL_LIQUIDATOR_ROLE, msg.sender), "Payout: Only SPECIAL_LIQUIDATOR_ROLE");    
+        if(_isLegal(user.balance, account) == false &&
+            hasRole(SPECIAL_LIQUIDATOR_ROLE, msg.sender) == false) {
+                revert NotLegal();    
         }
 
         EnumerableMap.AddressToUintMap storage userSubscriptions = subscriptions[account];
@@ -236,11 +248,30 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
 
         user.drainBalance(users[msg.sender]);
 
-        emit Liquidate(account, msg.sender, uint48(block.timestamp));
+        emit Liquidate(account, msg.sender);
     }
 
     function updateServiceWallet(address serviceWallet_) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         serviceWallet = serviceWallet_;
+    }
+
+    function rescueFunds(address token_, uint256 amount) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+        if(address(token) == token_) {
+            if(token.balanceOf(address(this)) - totalBalance >= amount) {
+                token.safeTransfer(serviceWallet, amount);
+            }
+        } else {
+            IERC20(token_).safeTransfer(serviceWallet, amount);
+        }
+    }
+
+    function _unsubscribe(address author) private {
+        uint48 contentCreatorRate = uint48(subscriptions[msg.sender].get(author));
+
+        users[msg.sender].increaseRate(contentCreatorRate);
+        users[author].decreaseRate(contentCreatorRate);
+
+        subscriptions[msg.sender].remove(author);
     }
 
     function _isLegal(int userBalance, address user) private view returns (bool) {
