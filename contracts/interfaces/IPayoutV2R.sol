@@ -11,13 +11,13 @@ interface IPayoutV2R {
     event Liquidate(address indexed user, address indexed liquidator);
     event PayBySig(address indexed executor, address indexed spender, address indexed receiver, uint256 amount);
 
+    error WrongPercent();
     error UserNotExist();
     error UserAlreadyExist();
     error NotSubscribed();
     error NotLiquidatable();
     error NotLegal();
 
-    function registrate(uint48 subscriptionRate) external;
     function deposit(uint amount) external;
     function changeSubscriptionRate(uint48 rate) external;
     function subscribe(address author) external;

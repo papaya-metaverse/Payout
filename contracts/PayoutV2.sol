@@ -9,9 +9,9 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 import "./interfaces/IPayoutV2.sol";
-import "./abstract/PayoutSigVerifier.sol";
+// import "./abstract/PayoutSigVerifier.sol";
 
-contract PayoutV2 is IPayoutV2, PayoutSigVerifier, AccessControl, ReentrancyGuard {
+contract PayoutV2 is IPayoutV2, AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     address public immutable chainPriceFeed;
