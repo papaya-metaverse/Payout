@@ -228,18 +228,16 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
 
     function withdraw(uint256 amount, address refferer) external override nonReentrant {
         UserLib.User storage user = users[msg.sender];
-         
-        uint256 totalAmount = (amount * user.userFee) / FLOOR;
 
         if (refferer != address(0)) {
-            uint256 REFFERAL_FEE = FLOOR - (user.userFee + user.protocolFee);
-            users[refferer].increaseBalance((amount * REFFERAL_FEE) / FLOOR);
+            uint256 refferalFee = FLOOR - (user.userFee + user.protocolFee);
+            users[refferer].increaseBalance((amount * refferalFee) / FLOOR);
         }
 
         user.decreaseBalance(amount);
         totalBalance -= amount;
 
-        token.safeTransfer(msg.sender, totalAmount);
+        token.safeTransfer(msg.sender, amount);
 
         emit Withdraw(msg.sender, amount);
     }
