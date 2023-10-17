@@ -68,7 +68,7 @@ library UserLib {
     }
 
     function drainBalance(User storage user, User storage liquidator) internal {
-        liquidator.balance += user.balance;
+        liquidator.balance += SignedMath.max(user.balance, int(0));
 
         user.balance = 0;
         // user.currentRate = 0; 
