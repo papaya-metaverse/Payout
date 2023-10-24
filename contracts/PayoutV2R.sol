@@ -22,22 +22,22 @@ library UserLib {
         int currentRate;
         int balance;
 
-        uint48 subscriptionRate;
+        uint96 subscriptionRate;
         uint48 updTimestamp;
         
-        uint48 userFee;
-        uint48 protocolFee;
-        uint48 referrerFee;
+        uint16 userFee;
+        uint16 protocolFee;
+        uint16 referrerFee;
     }
 
-    function increaseRate(User storage user, uint48 diff) internal {
+    function increaseRate(User storage user, uint96 diff) internal {
         _syncBalance(user);
-        user.currentRate += int48(diff);
+        user.currentRate += int96(diff);
     }
 
-    function decreaseRate(User storage user, uint48 diff) internal {
+    function decreaseRate(User storage user, uint96 diff) internal {
         _syncBalance(user);
-        user.currentRate -= int48(diff);
+        user.currentRate -= int96(diff);
 
         if(_isLiquidatable(user)) {
             revert TopUpBalance();
@@ -71,7 +71,6 @@ library UserLib {
         liquidator.balance += SignedMath.max(user.balance, int(0));
 
         user.balance = 0;
-        // user.currentRate = 0; 
     }
 
     function _syncBalance(User storage user) private {
@@ -81,7 +80,7 @@ library UserLib {
         }
     }
 
-    function _isLiquidatable(User memory user) private pure returns(bool) {       
+    function _isLiquidatable(User memory user) private pure returns (bool) {       
         return user.currentRate < 0 && (user.currentRate * -1) * 1 days > user.balance;
     }
 
@@ -98,9 +97,9 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
     using UserLib for UserLib.User;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    uint48 public constant FLOOR = 10000;
+    uint16 public constant FLOOR = 10000;
 
-    uint256 public constant APPROX_LIQUIDATE_GAS = 110000;
+    uint256 public constant APPROX_LIQUIDATE_GAS = 120000;
     uint256 public constant APPROX_SUBSCRIPTION_GAS = 8000; 
 
     bytes32 public constant SPECIAL_LIQUIDATOR_ROLE = keccak256(abi.encodePacked("SPECIAL_LIQUIDATOR_ROLE"));
@@ -141,19 +140,19 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
     }
 
     function registrate(SignInData calldata signInData, bytes memory rvs) external {
-        if(users[msg.sender].updTimestamp != 0) {
+        if (users[msg.sender].updTimestamp != 0) {
             revert UserAlreadyExist();
         }
 
+        if (signInData.protocolFee + signInData.referrerFee >= signInData.userFee) {
+            revert WrongPercent();
+        }
+
+        if (signInData.protocolFee + signInData.referrerFee + signInData.userFee > FLOOR) {
+            revert WrongPercent();
+        }
+
         verifySignInData(signInData, rvs);
-
-        if(signInData.protocolFee + signInData.referrerFee >= signInData.userFee) {
-            revert WrongPercent();
-        }
-
-        if(signInData.protocolFee + signInData.referrerFee + signInData.userFee > FLOOR) {
-            revert WrongPercent();
-        }
 
         users[msg.sender] = UserLib.User({
             currentRate: 0,
@@ -177,7 +176,7 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
         emit Deposit(msg.sender, amount);
     }
 
-    function changeSubscriptionRate(uint48 subscriptionRate) external override onlyExistUser(msg.sender) {
+    function changeSubscriptionRate(uint96 subscriptionRate) external override onlyExistUser(msg.sender) {
         users[msg.sender].subscriptionRate = subscriptionRate;
 
         emit ChangeSubscriptionRate(msg.sender, subscriptionRate);
@@ -188,13 +187,15 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
     }
 
     function subscribe(address author) external override onlyExistUser(msg.sender) {
-        if(subscriptions[msg.sender].contains(author)) {
-            _unsubscribe(author);
-        } 
-        
-        uint48 subscriptionRate = users[author].subscriptionRate;
+        {
+            (bool result, uint subscriptionRate) = subscriptions[msg.sender].tryGet(author);
+            if (result) {
+                _unsubscribe(author, subscriptionRate);
+            }
+        }
 
-        uint48 protocolRate = (subscriptionRate * users[author].protocolFee) / FLOOR;
+        uint96 subscriptionRate = users[author].subscriptionRate;
+        uint96 protocolRate = (subscriptionRate * users[author].protocolFee) / FLOOR;
 
         users[msg.sender].decreaseRate(subscriptionRate);
         users[author].increaseRate(subscriptionRate - protocolRate);
@@ -206,11 +207,13 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
     }
 
     function unsubscribe(address author) public {
-        if(!subscriptions[msg.sender].contains(author)) {
+        (bool result, uint subscriptionRate) = subscriptions[msg.sender].tryGet(author);
+
+        if (!result) {
             revert NotSubscribed();
         }
 
-        _unsubscribe(author);
+        _unsubscribe(author, subscriptionRate);
 
         emit Unsubscribe(msg.sender, author);
     }
@@ -245,26 +248,16 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
     function liquidate(address account) external override {
         UserLib.User storage user = users[account];
 
-        if(!user.isLiquidatable()) {
+        if (!user.isLiquidatable() || !_isLegal(user.balance, account)) {
             revert NotLiquidatable();
-        }
-
-        if(!_isLegal(user.balance, account) && 
-            !hasRole(SPECIAL_LIQUIDATOR_ROLE, msg.sender)) {
-                revert NotLegal();    
         }
 
         EnumerableMap.AddressToUintMap storage userSubscriptions = subscriptions[account];
 
-        for(uint i = 0; i < userSubscriptions.length(); i++) {
-            (address author, uint contentCreatorRate) = userSubscriptions.at(i);
+        for (uint i = userSubscriptions.length(); i > 0; i--) {
+            (address author, uint subscriptionRate) = userSubscriptions.at(i - 1);
 
-            users[author].decreaseRate(uint48(contentCreatorRate));
-            user.increaseRate(uint48(contentCreatorRate));
-            
-            users[serviceWallet].decreaseRate(uint48(contentCreatorRate * users[author].protocolFee) / FLOOR);
-           
-            userSubscriptions.remove(author);
+            _unsubscribe(author, subscriptionRate);
         }
 
         user.drainBalance(users[msg.sender]);
@@ -277,8 +270,8 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
     }
 
     function rescueFunds(address token_, uint256 amount) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-        if(address(token) == token_) {
-            if(token.balanceOf(address(this)) - totalBalance >= amount) {
+        if (address(token) == token_) {
+            if (token.balanceOf(address(this)) - totalBalance >= amount) {
                 token.safeTransfer(serviceWallet, amount);
             }
         } else {
@@ -286,13 +279,12 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
         }
     }
 
-    function _unsubscribe(address author) private {
-        uint48 contentCreatorRate = uint48(subscriptions[msg.sender].get(author));
-        uint48 protocolRate = (contentCreatorRate * users[author].protocolFee) / FLOOR;
+    function _unsubscribe(address author, uint subscriptionRate) private {
+        uint48 protocolRate = (uint48(subscriptionRate) * users[author].protocolFee) / FLOOR;
 
-        users[msg.sender].increaseRate(contentCreatorRate);
+        users[msg.sender].increaseRate(uint48(subscriptionRate));
 
-        users[author].decreaseRate(contentCreatorRate - protocolRate);
+        users[author].decreaseRate(uint48(subscriptionRate) - protocolRate);
         users[serviceWallet].decreaseRate(protocolRate);
 
         subscriptions[msg.sender].remove(author);

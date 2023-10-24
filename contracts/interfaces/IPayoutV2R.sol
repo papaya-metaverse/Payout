@@ -4,7 +4,7 @@ pragma solidity ^0.8.19;
 interface IPayoutV2R {
     event Registrate(address indexed user);
     event Deposit(address indexed user, uint256 amount);
-    event ChangeSubscriptionRate(address indexed user, uint48 rate);
+    event ChangeSubscriptionRate(address indexed user, uint96 rate);
     event Subscribe(address indexed user, address indexed author);
     event Unsubscribe(address indexed user, address indexed author);
     event Withdraw(address indexed user, uint256 amount);
@@ -19,7 +19,7 @@ interface IPayoutV2R {
     error NotLegal();
 
     function deposit(uint amount) external;
-    function changeSubscriptionRate(uint48 rate) external;
+    function changeSubscriptionRate(uint96 rate) external;
     function subscribe(address author) external;
     function withdraw(uint amount, address refferer) external;
     function liquidate(address account) external;

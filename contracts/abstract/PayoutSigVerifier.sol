@@ -17,10 +17,10 @@ abstract contract PayoutSigVerifier is EIP712 {
 
     struct SignInData {
         uint256 nonce;
-        uint48 subscriptionRate;
-        uint48 userFee;
-        uint48 protocolFee;
-        uint48 referrerFee;
+        uint96 subscriptionRate;
+        uint16 userFee;
+        uint16 protocolFee;
+        uint16 referrerFee;
     }
 
     string private constant SIGNING_DOMAIN = "PayoutSigVerifier";
@@ -55,7 +55,7 @@ abstract contract PayoutSigVerifier is EIP712 {
             _hashTypedDataV4(
                 keccak256(
                     abi.encode(
-                        keccak256("SignInData(uint256 nonce,uint48 subscriptionRate,uint48 userFee,uint48 protocolFee,uint48 referrerFee)"),
+                        keccak256("SignInData(uint256 nonce,uint96 subscriptionRate,uint16 userFee,uint16 protocolFee,uint16 referrerFee)"),
                         signInData
                     )
                 )
@@ -63,22 +63,20 @@ abstract contract PayoutSigVerifier is EIP712 {
     }
 
     function verifyPayment(Payment calldata payment, bytes memory rvs) internal returns (bool) {
-        if(payment.nonce != nonces[payment.spender]) {
-            revert InvalidNonce();
-        }
-    
-        nonces[payment.spender]++;
-
-        return SignatureChecker.isValidSignatureNow(payment.spender, _hashPayment(payment), rvs);
+        return _verify(_hashPayment(payment), payment.spender, payment.spender, payment.nonce, rvs);
     }
 
     function verifySignInData(SignInData calldata signInData, bytes memory rvs) internal returns (bool) {
-        if(signInData.nonce != nonces[msg.sender]) {
+        return _verify(_hashSignInData(signInData), protocolSigner, msg.sender, signInData.nonce, rvs);
+    }
+
+    function _verify(bytes32 hash, address signer, address noncer, uint256 nonce, bytes memory rvs) internal returns (bool){
+        if (nonce != nonces[noncer]) {
             revert InvalidNonce();
         }
 
-        nonces[msg.sender]++;
+        nonces[noncer]++;
 
-        return SignatureChecker.isValidSignatureNow(protocolSigner, _hashSignInData(signInData), rvs);
+        return SignatureChecker.isValidSignatureNow(signer, hash, rvs);
     }
 }
