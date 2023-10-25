@@ -11,12 +11,14 @@ const deployPayout: DeployFunction = async function (
 
     const REAL_MAGIC_NUMBER = 19
 
+    const protocolSigner = networkConfig[network.name].payoutV2R.protocolSigner
     const serviceWallet = networkConfig[network.name].payoutV2R.serviceWallet
     const chainPriceFeed = networkConfig[network.name].payoutV2R.chainPriceFeed
     const tokenPriceFeed = networkConfig[network.name].payoutV2R.tokenPriceFeed
     const token = networkConfig[network.name].payoutV2R.token
 
     const args: any[] = [
+        protocolSigner,
         serviceWallet == undefined ? 
             (await ethers.getSigners())[REAL_MAGIC_NUMBER].address : serviceWallet, 
         chainPriceFeed,

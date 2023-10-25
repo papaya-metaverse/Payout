@@ -18,6 +18,9 @@ library UserLib {
     error InsufficialBalance();
     error ReduceTheAmount();
 
+    int constant SAFE_LIQUIDATION_TIME = 2 days;
+    int constant LIQUIDATION_TIME = 1 days;
+
     struct User {
         int currentRate;
         int balance;
@@ -38,8 +41,7 @@ library UserLib {
     function decreaseRate(User storage user, uint96 diff) internal {
         _syncBalance(user);
         user.currentRate -= int96(diff);
-
-        if(_isLiquidatable(user)) {
+        if(_isLiquidatable(user, SAFE_LIQUIDATION_TIME)) {
             revert TopUpBalance();
         }
     }  
@@ -56,7 +58,7 @@ library UserLib {
 
         user.balance -= int(amount);
 
-        if(_isLiquidatable(user)) {
+        if(_isLiquidatable(user, SAFE_LIQUIDATION_TIME)) {
             revert ReduceTheAmount();
         }
     }
@@ -64,7 +66,7 @@ library UserLib {
     function isLiquidatable(User storage user) internal returns(bool) {
         _syncBalance(user);
 
-        return _isLiquidatable(user);
+        return _isLiquidatable(user, LIQUIDATION_TIME);
     }
 
     function drainBalance(User storage user, User storage liquidator) internal {
@@ -74,14 +76,14 @@ library UserLib {
     }
 
     function _syncBalance(User storage user) private {
-        if(user.currentRate != 0 && user.updTimestamp != uint48(block.timestamp)) {
+        if(user.currentRate != 0 || user.updTimestamp != uint48(block.timestamp)) {
             user.balance = _balanceOf(user);
             user.updTimestamp = uint48(block.timestamp);
         }
     }
 
-    function _isLiquidatable(User memory user) private pure returns (bool) {       
-        return user.currentRate < 0 && (user.currentRate * -1) * 1 days > user.balance;
+    function _isLiquidatable(User memory user, int256 TIME) private pure returns (bool) {       
+        return user.currentRate < 0 && (user.currentRate * -1) * TIME > user.balance;
     }
 
     function _balanceOf(User memory user) internal view returns (int) {
@@ -99,8 +101,8 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
 
     uint16 public constant FLOOR = 10000;
 
-    uint256 public constant APPROX_LIQUIDATE_GAS = 120000;
-    uint256 public constant APPROX_SUBSCRIPTION_GAS = 8000; 
+    uint256 public constant APPROX_LIQUIDATE_GAS = 185000; 
+    uint256 public constant APPROX_SUBSCRIPTION_GAS = 8000;
 
     bytes32 public constant SPECIAL_LIQUIDATOR_ROLE = keccak256(abi.encodePacked("SPECIAL_LIQUIDATOR_ROLE"));
 
