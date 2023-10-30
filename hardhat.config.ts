@@ -68,57 +68,14 @@ const config: HardhatUserConfig = {
   },
   gasReporter: {
     enabled: true,
-    // gasPrice: 1,
-    coinmarketcap: getEnv('COINMARKETCAP_API_KEY'),
-    gasPriceApi: getEnv('POLYGON_GASPRICE'),
+    gasPrice: 32,
     currency: 'USD',
     token: 'MATIC',
     // outputFile: "./gas-report",
     noColors: false
   },
-  etherscan: {
-    apiKey: getEnv('POLYGONSCAN_API_KEY')
-  },
   defaultNetwork: "hardhat",
   networks: {
-    mumbai: {
-      url: `https://polygon-mumbai.g.alchemy.com/v2/${getEnv('ALCHEMY_MUMBAI_KEY')}`,
-      accounts: [
-        getEnv('PRIVATE_KEY_DEPLOYER'),
-      ],
-      verify: {
-        etherscan: {
-          apiUrl: "https://mumbai.polygonscan.com/",
-          apiKey: getEnv('POLYGONSCAN_API_KEY'),
-        }
-      }
-    },
-    bsc_testnet: {
-      url: "https://data-seed-prebsc-1-s1.bnbchain.org:8545",
-      chainId: 97,
-      accounts: [
-        getEnv('PRIVATE_KEY_DEPLOYER'),
-      ],
-      verify: {
-        etherscan: {
-          apiUrl: "https://api-testnet.bscscan.com/",
-          apiKey: getEnv('BSCSCAN_API_KEY'),
-        }
-      }
-    },
-    bsc_mainnet: {
-      url: "https://bsc-dataseed.bnbchain.org/",
-      chainId: 56,
-      accounts: [
-        getEnv('PRIVATE_KEY_DEPLOYER'),
-      ],
-      verify: {
-        etherscan: {
-          apiUrl: "https://api.bscscan.com/",
-          apiKey: getEnv('BSCSCAN_API_KEY'),
-        }
-      }
-    },
     hardhat: {
       /**
        * blockGasLimit settings for different chains
@@ -180,9 +137,6 @@ const config: HardhatUserConfig = {
     },
     creator: {
       default: 3,
-    },
-    refferer: {
-      default: 4,
     },
     user_1: {
       default: 5,
