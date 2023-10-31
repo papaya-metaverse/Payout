@@ -47,7 +47,7 @@ export const networkConfig: networkConfigInfo = {
             serviceWallet: getEnv('TEST_PUBLICKEY2'),
             chainPriceFeed: getEnv('TEST_PUBLIC_KEY_CHAIN_PRICE_FEED'),
             tokenPriceFeed: getEnv('TEST_PUBLIC_KEY_TOKEN_PRICE_FEED'),
-            token: getEnv('PUBLIC_KEY_TOKEN')
+            token: getEnv('TEST_PUBLIC_KEY_TOKEN')
         }
     }
 }

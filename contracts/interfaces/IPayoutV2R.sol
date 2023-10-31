@@ -2,7 +2,7 @@
 pragma solidity ^0.8.19;
 
 interface IPayoutV2R {
-    event Registrate(address indexed user);
+    event UpdateSettings(address indexed user, uint16 userFee, uint16 protocolFee);
     event Deposit(address indexed user, uint256 amount);
     event ChangeSubscriptionRate(address indexed user, uint96 rate);
     event Subscribe(address indexed user, address indexed author);
@@ -21,10 +21,10 @@ interface IPayoutV2R {
     function deposit(uint amount) external;
     function changeSubscriptionRate(uint96 rate) external;
     function subscribe(address author) external;
-    function withdraw(uint amount, address refferer) external;
+    function withdraw(uint amount) external;
     function liquidate(address account) external;
     function balanceOf(address account) external returns(uint);
     
     function rescueFunds(address token_, uint256 amount) external;
-    function updateServiceWallet(address newWallet_) external;
+    function updateProtocolWallet(address newWallet_) external;
 }

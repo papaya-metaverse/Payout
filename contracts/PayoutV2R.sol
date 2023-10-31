@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/interfaces/IERC2612.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
@@ -21,30 +21,46 @@ library UserLib {
     int constant SAFE_LIQUIDATION_TIME = 2 days;
     int constant LIQUIDATION_TIME = 1 days;
 
+    uint16 public constant FLOOR = 10000;
+
     struct User {
         int currentRate;
         int balance;
 
+        uint incomeRate;
+
         uint96 subscriptionRate;
         uint48 updTimestamp;
-        
+
         uint16 userFee;
         uint16 protocolFee;
-        uint16 referrerFee;
     }
 
     function increaseRate(User storage user, uint96 diff) internal {
         _syncBalance(user);
+
         user.currentRate += int96(diff);
     }
 
     function decreaseRate(User storage user, uint96 diff) internal {
         _syncBalance(user);
+
         user.currentRate -= int96(diff);
+        
         if(_isLiquidatable(user, SAFE_LIQUIDATION_TIME)) {
             revert TopUpBalance();
         }
     }  
+
+    //@dev Using this function only after calling increase/decrease Rate
+    function increaseIncomeRate(User storage user, uint96 diff) internal {
+        user.incomeRate += diff;
+    }
+
+    //@dev Using this function only after calling increase/decrease Rate
+    function decreaseIncomeRate(User storage user, uint96 diff) internal {
+        user.incomeRate -= diff;
+    }
 
     function increaseBalance(User storage user, uint amount) internal {
         user.balance += int(amount);
@@ -52,6 +68,7 @@ library UserLib {
 
     function decreaseBalance(User storage user, uint amount) internal {
         _syncBalance(user);
+
         if(user.balance < int(amount)) {
             revert InsufficialBalance();
         }  
@@ -75,6 +92,19 @@ library UserLib {
         user.balance = 0;
     }
 
+    function beforeUpdateSettings(User storage user, User storage protocol) internal {
+        _syncBalance(user);
+        _syncBalance(protocol);
+
+        user.currentRate -= int(_getUserFeeRate(user));
+        protocol.currentRate -= int(_getProtocolFeeRate(protocol));
+    }
+
+    function afterUpdateSettings(User storage user, User storage protocol) internal {
+        user.currentRate += int(_getUserFeeRate(user));
+        protocol.currentRate += int(_getProtocolFeeRate(protocol));
+    }
+
     function _syncBalance(User storage user) private {
         if(user.currentRate != 0 || user.updTimestamp != uint48(block.timestamp)) {
             user.balance = _balanceOf(user);
@@ -90,21 +120,26 @@ library UserLib {
         if(user.currentRate == 0 || user.updTimestamp == uint48(block.timestamp)) {
             return user.balance;
         }
+
         return user.balance + user.currentRate * int(int48(uint48(block.timestamp) - user.updTimestamp));
+    }
+
+    function _getProtocolFeeRate(User memory user) private pure returns(uint) {
+        return (user.incomeRate * user.protocolFee) / FLOOR;
+    }
+
+    function _getUserFeeRate(User memory user) private pure returns(uint) {
+        return (user.incomeRate * user.userFee) / FLOOR;
     }
 }
 
-contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGuard {
+contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    uint16 public constant FLOOR = 10000;
-
-    uint256 public constant APPROX_LIQUIDATE_GAS = 185000; 
-    uint256 public constant APPROX_SUBSCRIPTION_GAS = 8000;
-
-    bytes32 public constant SPECIAL_LIQUIDATOR_ROLE = keccak256(abi.encodePacked("SPECIAL_LIQUIDATOR_ROLE"));
+    uint public constant APPROX_LIQUIDATE_GAS = 185000; 
+    uint public constant APPROX_SUBSCRIPTION_GAS = 8000;
 
     AggregatorV3Interface public immutable chainPriceFeed;
     AggregatorV3Interface public immutable tokenPriceFeed;
@@ -112,73 +147,71 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
     IERC20 public immutable token;
 
     mapping(address account => UserLib.User) public users;
-    mapping(address account => EnumerableMap.AddressToUintMap) private subscriptions;
+    mapping(address account => EnumerableMap.AddressToUintMap) private _subscriptions;
 
-    address public serviceWallet;
-    uint256 public totalBalance;
-
-    modifier onlyExistUser(address account) {
-        if(account != address(0) && users[account].updTimestamp == 0) {
-            revert UserNotExist();
-        }
-        _;
-    }
+    address public protocolWallet;
+    uint public totalBalance;
 
     constructor(
         address protocolSigner_, 
-        address serviceWallet_, 
+        address protocolWallet_, 
         address chainPriceFeed_, 
         address tokenPriceFeed_, 
-        address token_) PayoutSigVerifier(protocolSigner_)
-    {
+        address token_
+    ) PayoutSigVerifier(protocolSigner_) {
         chainPriceFeed = AggregatorV3Interface(chainPriceFeed_);
         tokenPriceFeed = AggregatorV3Interface(tokenPriceFeed_);
 
         token = IERC20(token_);
 
-        serviceWallet = serviceWallet_;
-
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        protocolWallet = protocolWallet_;
     }
 
-    function registrate(SignInData calldata signInData, bytes memory rvs) external {
+    function updateSettings(Settings calldata settings, bytes memory rvs) external {
         if (users[msg.sender].updTimestamp != 0) {
             revert UserAlreadyExist();
         }
 
-        if (signInData.protocolFee + signInData.referrerFee >= signInData.userFee) {
+        if (settings.protocolFee >= settings.userFee) {
             revert WrongPercent();
         }
 
-        if (signInData.protocolFee + signInData.referrerFee + signInData.userFee > FLOOR) {
+        if (settings.protocolFee + settings.userFee != UserLib.FLOOR) {
             revert WrongPercent();
         }
 
-        verifySignInData(signInData, rvs);
+        verifySettings(settings, rvs);
 
-        users[msg.sender] = UserLib.User({
-            currentRate: 0,
-            balance: users[msg.sender]._balanceOf(),
-            subscriptionRate: signInData.subscriptionRate,
-            updTimestamp: uint48(block.timestamp),
-            userFee: signInData.userFee,
-            protocolFee: signInData.protocolFee,
-            referrerFee: signInData.referrerFee
-        });
+        users[msg.sender].beforeUpdateSettings(users[protocolWallet]);
 
-        emit Registrate(msg.sender);
+        users[msg.sender].subscriptionRate = settings.subscriptionRate;
+        users[msg.sender].userFee = settings.userFee;
+        users[msg.sender].protocolFee = settings.protocolFee;
+
+        users[msg.sender].afterUpdateSettings(users[protocolWallet]);
+
+        emit UpdateSettings(msg.sender, settings.userFee, settings.protocolFee);
     }
 
     function deposit(uint amount) external override nonReentrant {
-        users[msg.sender].increaseBalance(amount);
-        totalBalance += amount;
-
-        token.safeTransferFrom(msg.sender, address(this), amount);
-
-        emit Deposit(msg.sender, amount);
+        _deposit(msg.sender, amount);
     }
 
-    function changeSubscriptionRate(uint96 subscriptionRate) external override onlyExistUser(msg.sender) {
+    function permitApproveAndDeposit(ERC20PermitData calldata permit) external nonReentrant {
+        IERC2612(address(token)).permit(
+            permit.owner,
+            permit.spender,
+            permit.value,
+            permit.deadline,
+            permit.v,
+            permit.r,
+            permit.s
+        );
+
+        _deposit(permit.owner, permit.value);
+    }
+
+    function changeSubscriptionRate(uint96 subscriptionRate) external override {
         users[msg.sender].subscriptionRate = subscriptionRate;
 
         emit ChangeSubscriptionRate(msg.sender, subscriptionRate);
@@ -188,34 +221,35 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
         return uint(SignedMath.max(users[account]._balanceOf(), int(0)));
     }
 
-    function subscribe(address author) external override onlyExistUser(msg.sender) {
-        {
-            (bool result, uint subscriptionRate) = subscriptions[msg.sender].tryGet(author);
-            if (result) {
-                _unsubscribe(author, subscriptionRate);
-            }
+    function subscribe(address author) external override {
+        (bool success, uint actualRate) = _subscriptions[msg.sender].tryGet(author);
+
+        if (success) {
+            _unsubscribe(author, actualRate);
         }
 
         uint96 subscriptionRate = users[author].subscriptionRate;
-        uint96 protocolRate = (subscriptionRate * users[author].protocolFee) / FLOOR;
+        uint96 protocolRate = (subscriptionRate * users[author].protocolFee) / UserLib.FLOOR;
 
         users[msg.sender].decreaseRate(subscriptionRate);
         users[author].increaseRate(subscriptionRate - protocolRate);
-        users[serviceWallet].increaseRate(protocolRate);
+        users[protocolWallet].increaseRate(protocolRate);
 
-        subscriptions[msg.sender].set(author, subscriptionRate);
+        users[author].increaseIncomeRate(subscriptionRate);
+
+        _subscriptions[msg.sender].set(author, subscriptionRate);
 
         emit Subscribe(msg.sender, author);
     }
 
     function unsubscribe(address author) public {
-        (bool result, uint subscriptionRate) = subscriptions[msg.sender].tryGet(author);
+        (bool success, uint actualRate) = _subscriptions[msg.sender].tryGet(author);
 
-        if (!result) {
+        if (!success) {
             revert NotSubscribed();
         }
 
-        _unsubscribe(author, subscriptionRate);
+        _unsubscribe(author, actualRate);
 
         emit Unsubscribe(msg.sender, author);
     }
@@ -231,13 +265,8 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
         emit PayBySig(msg.sender, payment.spender, payment.receiver, payment.amount);
     }
 
-    function withdraw(uint256 amount, address refferer) external override nonReentrant {
+    function withdraw(uint256 amount) external override nonReentrant {
         UserLib.User storage user = users[msg.sender];
-
-        if (refferer != address(0)) {
-            uint256 refferalFee = FLOOR - (user.userFee + user.protocolFee);
-            users[refferer].increaseBalance((amount * refferalFee) / FLOOR);
-        }
 
         user.decreaseBalance(amount);
         totalBalance -= amount;
@@ -254,10 +283,10 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
             revert NotLiquidatable();
         }
 
-        EnumerableMap.AddressToUintMap storage userSubscriptions = subscriptions[account];
+        EnumerableMap.AddressToUintMap storage user_subscriptions = _subscriptions[account];
 
-        for (uint i = userSubscriptions.length(); i > 0; i--) {
-            (address author, uint subscriptionRate) = userSubscriptions.at(i - 1);
+        for (uint i = user_subscriptions.length(); i > 0; i--) {
+            (address author, uint subscriptionRate) = user_subscriptions.at(i - 1);
 
             _unsubscribe(author, subscriptionRate);
         }
@@ -267,29 +296,40 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
         emit Liquidate(account, msg.sender);
     }
 
-    function updateServiceWallet(address serviceWallet_) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-        serviceWallet = serviceWallet_;
+    function updateProtocolWallet(address protocolWallet_) external override onlyOwner {
+        protocolWallet = protocolWallet_;
     }
 
-    function rescueFunds(address token_, uint256 amount) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+    function rescueFunds(address token_, uint256 amount) external override onlyOwner {
         if (address(token) == token_) {
-            if (token.balanceOf(address(this)) - totalBalance >= amount) {
-                token.safeTransfer(serviceWallet, amount);
+            if (amount <= token.balanceOf(address(this)) - totalBalance) {
+                token.safeTransfer(protocolWallet, amount);
             }
         } else {
-            IERC20(token_).safeTransfer(serviceWallet, amount);
+            IERC20(token_).safeTransfer(protocolWallet, amount);
         }
     }
 
+    function _deposit(address account, uint amount) private {
+        users[account].increaseBalance(amount);
+        totalBalance += amount;
+
+        token.safeTransferFrom(account, address(this), amount);
+
+        emit Deposit(account, amount);
+    }
+
     function _unsubscribe(address author, uint subscriptionRate) private {
-        uint48 protocolRate = (uint48(subscriptionRate) * users[author].protocolFee) / FLOOR;
+        uint96 protocolRate = (uint96(subscriptionRate) * users[author].protocolFee) / UserLib.FLOOR;
 
-        users[msg.sender].increaseRate(uint48(subscriptionRate));
+        users[msg.sender].increaseRate(uint96(subscriptionRate));
 
-        users[author].decreaseRate(uint48(subscriptionRate) - protocolRate);
-        users[serviceWallet].decreaseRate(protocolRate);
+        users[author].decreaseRate(uint96(subscriptionRate) - protocolRate);
+        users[protocolWallet].decreaseRate(protocolRate);
 
-        subscriptions[msg.sender].remove(author);
+        users[author].decreaseIncomeRate(uint96(subscriptionRate));
+
+        _subscriptions[msg.sender].remove(author);
     }
 
     function _isLegal(int userBalance, address user) private view returns (bool) {
@@ -306,7 +346,7 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, AccessControl, ReentrancyGu
         chainTokenDecimals = chainPriceFeed.decimals();
 
         uint256 predictedPrice = (block.basefee *
-            (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * subscriptions[user].length())) / 1e9;
+            (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[user].length())) / 1e9;
 
         uint256 transactionCostInETH = (uint(chainTokenPrice) * predictedPrice) / chainTokenDecimals;
         int256 userBalanceInETH = (userTokenPrice * userBalance) / int(int8(userTokenDecimals));

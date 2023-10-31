@@ -7,6 +7,16 @@ import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 abstract contract PayoutSigVerifier is EIP712 {
     error InvalidNonce();
 
+    struct ERC20PermitData {
+        address owner;
+        address spender;
+        uint256 value;
+        uint256 deadline;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
     struct Payment {
         uint256 nonce;
         address spender;
@@ -15,12 +25,11 @@ abstract contract PayoutSigVerifier is EIP712 {
         uint256 executionFee;
     }
 
-    struct SignInData {
+    struct Settings {
         uint256 nonce;
         uint96 subscriptionRate;
         uint16 userFee;
         uint16 protocolFee;
-        uint16 referrerFee;
     }
 
     string private constant SIGNING_DOMAIN = "PayoutSigVerifier";
@@ -50,13 +59,13 @@ abstract contract PayoutSigVerifier is EIP712 {
             );
     }
 
-    function _hashSignInData(SignInData calldata signInData) internal view returns (bytes32) {
+    function _hashSettings(Settings calldata settings) internal view returns (bytes32) {
         return
             _hashTypedDataV4(
                 keccak256(
                     abi.encode(
-                        keccak256("SignInData(uint256 nonce,uint96 subscriptionRate,uint16 userFee,uint16 protocolFee,uint16 referrerFee)"),
-                        signInData
+                        keccak256("Settings(uint256 nonce,uint96 subscriptionRate,uint16 userFee,uint16 protocolFee)"),
+                        settings
                     )
                 )
             );
@@ -66,8 +75,8 @@ abstract contract PayoutSigVerifier is EIP712 {
         return _verify(_hashPayment(payment), payment.spender, payment.spender, payment.nonce, rvs);
     }
 
-    function verifySignInData(SignInData calldata signInData, bytes memory rvs) internal returns (bool) {
-        return _verify(_hashSignInData(signInData), protocolSigner, msg.sender, signInData.nonce, rvs);
+    function verifySettings(Settings calldata settings, bytes memory rvs) internal returns (bool) {
+        return _verify(_hashSettings(settings), protocolSigner, msg.sender, settings.nonce, rvs);
     }
 
     function _verify(bytes32 hash, address signer, address noncer, uint256 nonce, bytes memory rvs) internal returns (bool){
