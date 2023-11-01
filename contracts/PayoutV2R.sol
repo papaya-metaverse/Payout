@@ -168,10 +168,6 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, Ownable, ReentrancyGuard {
     }
 
     function updateSettings(Settings calldata settings, bytes memory rvs) external {
-        if (users[msg.sender].updTimestamp != 0) {
-            revert UserAlreadyExist();
-        }
-
         if (settings.protocolFee >= settings.userFee) {
             revert WrongPercent();
         }
