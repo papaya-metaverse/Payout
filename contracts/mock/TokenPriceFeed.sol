@@ -3,7 +3,7 @@ pragma solidity ^0.8.19;
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
-contract PriceFeed is AggregatorV3Interface {
+contract TokenPriceFeed is AggregatorV3Interface {
     uint8 public decimals_ = 8;
     uint256 public version_ = 1;
 
@@ -11,9 +11,8 @@ contract PriceFeed is AggregatorV3Interface {
         return decimals_;
     }
 
-    //As mock smart-contract we used MATIC/USD pair
     function description() external pure returns (string memory) {
-        return "MATIC/USD";
+        return "AYA/USD";
     }
 
     function version() external view returns (uint256) {
@@ -34,7 +33,7 @@ contract PriceFeed is AggregatorV3Interface {
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
         roundId = 0;
-        answer = 51770017;
+        answer = 1e8;
         startedAt = 0;
         updatedAt = 0;
         answeredInRound = 0;

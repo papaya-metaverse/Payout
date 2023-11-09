@@ -1,16 +1,15 @@
 import { HardhatUserConfig, task } from "hardhat/config";
+import "@nomicfoundation/hardhat-chai-matchers";
 import "@nomiclabs/hardhat-etherscan";
-import "@typechain/hardhat";
+import "hardhat-dependency-compiler";
+import "@nomiclabs/hardhat-ethers";
+import "hardhat-contract-sizer";
+import "hardhat-storage-layout";
 import "hardhat-gas-reporter";
 import "solidity-coverage";
 import "hardhat-watcher";
 import "hardhat-deploy"
-import "@nomiclabs/hardhat-ethers";
-import "@nomicfoundation/hardhat-chai-matchers";
 import "dotenv/config";
-import "hardhat-watcher";
-import "hardhat-contract-sizer";
-import "hardhat-storage-layout";
 
 const fs = require("fs");
 const { exec } = require("child_process");
@@ -54,11 +53,6 @@ const config: HardhatUserConfig = {
       optimizer: {
         enabled: true,
         runs: 100000, 
-        details: {
-          yulDetails: {
-            optimizerSteps: "u",
-          },
-        },
       }
     }
   },
@@ -88,8 +82,9 @@ const config: HardhatUserConfig = {
        * For Ethereum: https://ycharts.com/indicators/ethereum_average_gas_limit
        * : 30000000
        */
+      chainId: 31337,
       blockGasLimit: 30000000,
-      gasPrice: 1000000000,
+      gasPrice: 200_000_000_000,
       accounts: [
         {
           privateKey: getEnv('TEST_PRIVATEKEY'),
@@ -130,13 +125,16 @@ const config: HardhatUserConfig = {
       default: 1,
     },
     signer: {
-      hardhat: 0,
+      default: 1,
     },
     wrongSigner: {
       default: 2,
     },
     creator: {
       default: 3,
+    },
+    refferer: {
+      default: 4,
     },
     user_1: {
       default: 5,

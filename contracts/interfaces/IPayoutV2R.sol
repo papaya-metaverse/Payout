@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 interface IPayoutV2R {
     event UpdateSettings(address indexed user, uint16 userFee, uint16 protocolFee);
     event Deposit(address indexed user, uint256 amount);
@@ -12,8 +14,6 @@ interface IPayoutV2R {
     event PayBySig(address indexed executor, address indexed spender, address indexed receiver, uint256 amount);
 
     error WrongPercent();
-    error UserNotExist();
-    error UserAlreadyExist();
     error NotSubscribed();
     error NotLiquidatable();
     error NotLegal();
@@ -25,6 +25,6 @@ interface IPayoutV2R {
     function liquidate(address account) external;
     function balanceOf(address account) external returns(uint);
     
-    function rescueFunds(address token_, uint256 amount) external;
+    function rescueFunds(IERC20 token_, uint256 amount) external;
     function updateProtocolWallet(address newWallet_) external;
 }

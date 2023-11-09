@@ -16,23 +16,21 @@ export class SignatureFactory {
     this.signer = signer;
   }
 
-  async createSignIn(
+  async createSettings(
     user: string,
     subscriptionRate: BigNumber,
     userFee: BigNumber,
     protocolFee: BigNumber,
-    referrerFee: BigNumber
   ) {
     const nonce = await this.contract.nonces(user);
     const domain = await this._signingDomain();
-    const data = {nonce, subscriptionRate, userFee, protocolFee, referrerFee}
+    const data = {nonce, subscriptionRate, userFee, protocolFee}
     const types = {
       SignInData: [
         {name: 'nonce', type: 'uint256'},
         {name: 'subscriptionRate', type: 'uint48'},
         {name: 'userFee', type: 'uint16'},
         {name: 'protocolFee', type: 'uint16'},
-        {name: 'referrerFee', type: 'uint16'},
       ]
     }
 

@@ -7,16 +7,6 @@ import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 abstract contract PayoutSigVerifier is EIP712 {
     error InvalidNonce();
 
-    struct ERC20PermitData {
-        address owner;
-        address spender;
-        uint256 value;
-        uint256 deadline;
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-    }
-
     struct Payment {
         uint256 nonce;
         address spender;
