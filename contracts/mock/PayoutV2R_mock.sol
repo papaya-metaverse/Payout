@@ -139,7 +139,7 @@ library UserLib {
     }
 }
 
-contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, Ownable {
+contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -295,7 +295,7 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, Ownable {
         (, int256 nativeAssetPrice, , , ) = CHAIN_PRICE_FEED.latestRoundData();
         uint8 pairDecimals = TOKEN_PRICE_FEED.decimals();
 
-        uint256 expectedNativeAssetCost = block.basefee *
+        uint256 expectedNativeAssetCost = tx.gasprice *
             (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[user].length());
 
         uint256 coinScalePrice = scalePrice(expectedNativeAssetCost * uint(nativeAssetPrice), pairDecimals);

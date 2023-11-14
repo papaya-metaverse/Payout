@@ -1,7 +1,7 @@
 import hre from 'hardhat'
 import { ethers } from 'hardhat';
 import { BigNumber, Signer } from 'ethers';
-import { PayoutV2R, AYA, PriceFeed } from '../typechain-types'
+import { PayoutV2R_mock, AYA, PriceFeed } from '../typechain-types'
 import { expect, deployContract } from '@1inch/solidity-utils'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { SignatureFactory } from './helpers/PayoutSigFactory'
@@ -36,7 +36,7 @@ describe("PayoutV2R", function() {
     let protocolWallet: SignerWithAddress
 
     let token: AYA
-    let payout: PayoutV2R
+    let payout: PayoutV2R_mock
     let nativePriceFeed: PriceFeed
     let tokenPriceFeed: PriceFeed
 
