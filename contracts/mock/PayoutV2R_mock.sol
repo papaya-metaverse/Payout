@@ -9,8 +9,8 @@ import { SafeERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.s
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
-import "./interfaces/IPayoutV2R.sol";
-import "./abstract/PayoutSigVerifier.sol";
+import "../interfaces/IPayoutV2R.sol";
+import "../abstract/PayoutSigVerifier.sol";
 
 library UserLib {
     using SafeCast for uint256;
