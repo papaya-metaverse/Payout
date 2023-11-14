@@ -27,6 +27,28 @@ contract TokenPriceFeed is AggregatorV3Interface {
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {}
 
+    //14.11.2023
+    //MATIC/USD = 90180000
+    //MATIC Decimals = 18
+   
+    //ETH/USD = 208074000000
+    //Ethereum Decimals = 18
+
+    //1Inch/USD = 35827705
+    //1Inch Decimals = 18
+
+    //DAI/USD ~ 1e8
+    //DAI Decimals = 18
+
+    //BTC/USD = 3674320497689
+    //BTC Decimals = 8
+
+    //USDT/USD ~ 1e8
+    //USDT Decimals = 6
+
+    //USDC/USD ~ 1e8
+    //USDC Decimals = 6
+
     function latestRoundData()
         external
         pure

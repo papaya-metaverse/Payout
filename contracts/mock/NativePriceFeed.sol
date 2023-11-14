@@ -28,13 +28,17 @@ contract NativePriceFeed is AggregatorV3Interface {
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {}
 
+    //14.11.2023
+    //MATIC/USD = 90180000
+    //MATIC Decimals = 18
+
     function latestRoundData()
         external
         pure
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
         roundId = 0;
-        answer = 7718100;
+        answer = 90180000;
         startedAt = 0;
         updatedAt = 0;
         answeredInRound = 0;

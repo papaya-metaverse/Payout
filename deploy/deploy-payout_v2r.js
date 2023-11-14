@@ -17,13 +17,15 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     const chainPriceFeed = networkConfig[network.name].payoutV2R.chainPriceFeed
     const tokenPriceFeed = networkConfig[network.name].payoutV2R.tokenPriceFeed
     const token = networkConfig[network.name].payoutV2R.token
+    const tokenDecimals = networkConfig[network.name].payoutV2R.tokenDecimals
 
     const args = [
         protocolSigner,
         serviceWallet, 
         chainPriceFeed,
         tokenPriceFeed,
-        token
+        token,
+        tokenDecimals
     ]
 
     const payout = await deploy('PayoutV2R', {

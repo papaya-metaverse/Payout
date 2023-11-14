@@ -385,6 +385,10 @@ describe("PayoutV2R", function() {
 
         it("Positive", async() => {
             await time.increase(2 * DAY) 
+            // hre.tracer.enabled = true;
+            // await myContract.doStuff(val2);
+            // hre.tracer.enabled = false;
+            //Где то есть переполнения
             await payout.connect(referrer).liquidate(user.address)
 
             console.log(await payout.users(user.address))

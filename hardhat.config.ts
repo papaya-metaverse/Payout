@@ -8,7 +8,8 @@ import "hardhat-storage-layout";
 import "hardhat-gas-reporter";
 import "solidity-coverage";
 import "hardhat-watcher";
-import "hardhat-deploy"
+import "hardhat-deploy";
+import "hardhat-tracer";
 import "dotenv/config";
 
 const fs = require("fs");
@@ -62,7 +63,7 @@ const config: HardhatUserConfig = {
   },
   gasReporter: {
     enabled: true,
-    gasPrice: 32,
+    gasPrice: 70,
     currency: 'USD',
     token: 'MATIC',
     // outputFile: "./gas-report",
@@ -84,7 +85,7 @@ const config: HardhatUserConfig = {
        */
       chainId: 31337,
       blockGasLimit: 30000000,
-      gasPrice: 200_000_000_000,
+      gasPrice: 70_000_000_000,
       accounts: [
         {
           privateKey: getEnv('TEST_PRIVATEKEY'),
