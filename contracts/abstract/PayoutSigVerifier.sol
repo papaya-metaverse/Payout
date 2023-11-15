@@ -16,10 +16,23 @@ abstract contract PayoutSigVerifier is EIP712 {
     }
 
     struct Settings {
-        uint256 nonce;
+        uint128 nonce;
         uint96 subscriptionRate;
         uint16 userFee;
         uint16 protocolFee;
+    }
+
+    struct SubSig {
+        uint256 nonce;
+        address user;
+        address author;
+        uint256 maxRate;
+    }
+
+    struct UnSubSig {
+        uint256 nonce;
+        address user;
+        address author;
     }
 
     string private constant SIGNING_DOMAIN = "PayoutSigVerifier";
@@ -54,8 +67,32 @@ abstract contract PayoutSigVerifier is EIP712 {
             _hashTypedDataV4(
                 keccak256(
                     abi.encode(
-                        keccak256("Settings(uint256 nonce,uint96 subscriptionRate,uint16 userFee,uint16 protocolFee)"),
+                        keccak256("Settings(uint128 nonce,uint96 subscriptionRate,uint16 userFee,uint16 protocolFee)"),
                         settings
+                    )
+                )
+            );
+    }
+
+    function _hashSubscribe(SubSig calldata subsig) internal view returns (bytes32) {
+        return   
+            _hashTypedDataV4(
+                keccak256(
+                    abi.encode(
+                        keccak256("SubSig(uint256 nonce,address user,address author,uint256 maxRate)"),
+                        subsig
+                    )
+                )
+            );
+    }
+
+    function _hashUnSubscribe(UnSubSig calldata unsubsig) internal view returns (bytes32) {
+        return   
+            _hashTypedDataV4(
+                keccak256(
+                    abi.encode(
+                        keccak256("UnSubSig(uint256 nonce,address user,address author)"),
+                        unsubsig
                     )
                 )
             );
@@ -67,6 +104,14 @@ abstract contract PayoutSigVerifier is EIP712 {
 
     function verifySettings(Settings calldata settings, bytes memory rvs) internal returns (bool) {
         return _verify(_hashSettings(settings), protocolSigner, msg.sender, settings.nonce, rvs);
+    }
+
+    function verifySubscribe(SubSig calldata subsig, bytes memory rvs) internal returns (bool) {
+        return _verify(_hashSubscribe(subsig), subsig.user, subsig.user, subsig.nonce, rvs);
+    }
+
+    function verifyUnsubscribe(UnSubSig calldata unsubsig, bytes memory rvs) internal returns (bool) {
+        return _verify(_hashUnSubscribe(unsubsig), unsubsig.user, unsubsig.user, unsubsig.nonce, rvs);
     }
 
     function _verify(bytes32 hash, address signer, address noncer, uint256 nonce, bytes memory rvs) internal returns (bool){

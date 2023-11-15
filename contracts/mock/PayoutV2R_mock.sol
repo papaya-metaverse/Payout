@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -13,8 +12,6 @@ import "../interfaces/IPayoutV2R.sol";
 import "../abstract/PayoutSigVerifier.sol";
 
 library UserLib {
-    using SafeCast for uint256;
-
     error TopUpBalance();
     error InsufficialBalance();
     error ReduceTheAmount();
@@ -31,6 +28,12 @@ library UserLib {
         uint256 outgoingRate; // changes to this field requires _syncBalance() call
 
         PayoutSigVerifier.Settings settings;
+    }
+
+    function setSettings(User storage user, PayoutSigVerifier.Settings calldata settings, User storage protocol) internal {
+        _syncBalance(user, protocol);
+
+        user.settings = settings;
     }
 
     function increaseOutgoingRate(User storage user, uint96 diff, int256 threshold, User storage protocol) internal {
@@ -189,14 +192,17 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         if (settings.protocolFee >= settings.userFee) revert WrongPercent();
         if (settings.protocolFee + settings.userFee != UserLib.FLOOR) revert WrongPercent();
         verifySettings(settings, rvs);
-        
-        users[msg.sender].settings = settings;
+        users[msg.sender].setSettings(settings, users[protocolWallet]);
 
         emit UpdateSettings(msg.sender, settings.userFee, settings.protocolFee);
     }
 
     function deposit(uint amount) external override {
         _deposit(msg.sender, amount);
+    }
+
+    function depositFor(uint amount, address to) external override {
+        _deposit(to, amount);
     }
 
     function permitAndDeposit(bytes calldata permitData, uint amount) external {
@@ -214,29 +220,50 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         return uint(SignedMath.max(users[account].balanceOf(), int(0)));
     }
 
-    function subscribe(address author) external override {
-        (bool success, uint actualRate) = _subscriptions[msg.sender].tryGet(author);
-        if (success) {
-            _unsubscribeEffects(msg.sender, author, uint96(actualRate));
-        }
+    function subscribe(address author, uint maxRate) external override {
+        _subscribeChecks(msg.sender, author);
 
         uint96 subscriptionRate = users[author].settings.subscriptionRate;
-        users[msg.sender].increaseOutgoingRate(subscriptionRate, _liquidationThreshold(msg.sender), users[protocolWallet]);
-        users[author].increaseIncomeRate(subscriptionRate, users[protocolWallet]);
-        _subscriptions[msg.sender].set(author, subscriptionRate);
-
+       
+        if (subscriptionRate > maxRate) {
+            revert ExcessOfRate();
+        } else {
+            _subscribeEffects(msg.sender, author, subscriptionRate);
+        }
         emit Subscribe(msg.sender, author);
     }
 
-    function unsubscribe(address author) public {
-        (bool success, uint actualRate) = _subscriptions[msg.sender].tryGet(author);
-        if (!success) {
-            revert NotSubscribed();
+    function subscribeBySig(SubSig calldata subsig, bytes memory rvs) external {
+        verifySubscribe(subsig, rvs);
+
+        _subscribeChecks(subsig.user, subsig.author);
+
+        uint96 subscriptionRate = users[subsig.author].settings.subscriptionRate;
+
+        if (subscriptionRate > subsig.maxRate) {
+            revert ExcessOfRate();
+        } else {
+            _subscribeEffects(subsig.user, subsig.author, subscriptionRate);
         }
+        emit Subscribe(subsig.user, subsig.author);
+    }
+
+    function unsubscribe(address author) public {
+        uint actualRate = _unsubscribeChecks(msg.sender, author);
 
         _unsubscribeEffects(msg.sender, author, uint96(actualRate));
 
         emit Unsubscribe(msg.sender, author);
+    }
+
+    function unsubscribeBySig(UnSubSig calldata unsubsig, bytes memory rvs) external {
+        verifyUnsubscribe(unsubsig, rvs);
+
+        uint actualRate = _unsubscribeChecks(unsubsig.user, unsubsig.author);
+
+        _unsubscribeEffects(unsubsig.user, unsubsig.author, uint96(actualRate));
+
+        emit Unsubscribe(unsubsig.user, unsubsig.author);
     }
 
     function payBySig(Payment calldata payment, bytes memory rvs) external {
@@ -284,10 +311,32 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         emit Deposit(account, amount);
     }
 
+    function _unsubscribeChecks(address user, address author) private view returns(uint) {
+        (bool success, uint actualRate) = _subscriptions[user].tryGet(author);
+        if (!success) {
+            revert NotSubscribed();
+        }
+
+        return actualRate;
+    }
+
     function _unsubscribeEffects(address user, address author, uint96 subscriptionRate) private {
         users[user].decreaseOutgoingRate(subscriptionRate, users[protocolWallet]);
         users[author].decreaseIncomeRate(subscriptionRate, _liquidationThreshold(author), users[protocolWallet]);
         _subscriptions[user].remove(author);
+    }
+
+    function _subscribeChecks(address user, address author) private {
+        (bool success, uint actualRate) = _subscriptions[user].tryGet(author);
+        if (success) {
+            _unsubscribeEffects(user, author, uint96(actualRate));
+        }
+    }
+
+    function _subscribeEffects(address user, address author, uint96 subscriptionRate) private {
+        users[user].increaseOutgoingRate(subscriptionRate, _liquidationThreshold(user), users[protocolWallet]);
+        users[author].increaseIncomeRate(subscriptionRate, users[protocolWallet]);
+        _subscriptions[user].set(author, subscriptionRate);
     }
 
     function _liquidationThreshold(address user) private view returns (int) {

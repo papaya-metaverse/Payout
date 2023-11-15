@@ -17,10 +17,12 @@ interface IPayoutV2R {
     error NotSubscribed();
     error NotLiquidatable();
     error NotLegal();
+    error ExcessOfRate();
 
     function deposit(uint amount) external;
+    function depositFor(uint amount, address user) external;
     function changeSubscriptionRate(uint96 rate) external;
-    function subscribe(address author) external;
+    function subscribe(address author, uint maxRate) external;
     function withdraw(uint amount) external;
     function liquidate(address account) external;
     function balanceOf(address account) external returns(uint);
