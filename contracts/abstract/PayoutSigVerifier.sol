@@ -55,7 +55,9 @@ abstract contract PayoutSigVerifier is EIP712 {
             _hashTypedDataV4(
                 keccak256(
                     abi.encode(
-                        keccak256("Payment(uint256 nonce,address spender,address receiver,uint256 amount,uint256 executionFee)"),
+                        keccak256(
+                            "Payment(uint256 nonce,address spender,address receiver,uint256 amount,uint256 executionFee)"
+                        ),
                         payment
                     )
                 )
@@ -75,26 +77,18 @@ abstract contract PayoutSigVerifier is EIP712 {
     }
 
     function _hashSubscribe(SubSig calldata subsig) internal view returns (bytes32) {
-        return   
+        return
             _hashTypedDataV4(
                 keccak256(
-                    abi.encode(
-                        keccak256("SubSig(uint256 nonce,address user,address author,uint256 maxRate)"),
-                        subsig
-                    )
+                    abi.encode(keccak256("SubSig(uint256 nonce,address user,address author,uint256 maxRate)"), subsig)
                 )
             );
     }
 
     function _hashUnSubscribe(UnSubSig calldata unsubsig) internal view returns (bytes32) {
-        return   
+        return
             _hashTypedDataV4(
-                keccak256(
-                    abi.encode(
-                        keccak256("UnSubSig(uint256 nonce,address user,address author)"),
-                        unsubsig
-                    )
-                )
+                keccak256(abi.encode(keccak256("UnSubSig(uint256 nonce,address user,address author)"), unsubsig))
             );
     }
 
@@ -114,7 +108,13 @@ abstract contract PayoutSigVerifier is EIP712 {
         return _verify(_hashUnSubscribe(unsubsig), unsubsig.user, unsubsig.user, unsubsig.nonce, rvs);
     }
 
-    function _verify(bytes32 hash, address signer, address noncer, uint256 nonce, bytes memory rvs) internal returns (bool){
+    function _verify(
+        bytes32 hash,
+        address signer,
+        address noncer,
+        uint256 nonce,
+        bytes memory rvs
+    ) internal returns (bool) {
         if (nonce != nonces[noncer]) {
             revert InvalidNonce();
         }

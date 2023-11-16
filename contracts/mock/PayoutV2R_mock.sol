@@ -4,7 +4,7 @@ pragma solidity 0.8.19;
 import "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import { SafeERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
+import {SafeERC20} from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
@@ -24,13 +24,16 @@ library UserLib {
     struct User {
         uint40 updTimestamp;
         int256 balance;
-        uint256 incomeRate;   // changes to this field requires _syncBalance() call
+        uint256 incomeRate; // changes to this field requires _syncBalance() call
         uint256 outgoingRate; // changes to this field requires _syncBalance() call
-
         PayoutSigVerifier.Settings settings;
     }
 
-    function setSettings(User storage user, PayoutSigVerifier.Settings calldata settings, User storage protocol) internal {
+    function setSettings(
+        User storage user,
+        PayoutSigVerifier.Settings calldata settings,
+        User storage protocol
+    ) internal {
         _syncBalance(user, protocol);
 
         user.settings = settings;
@@ -39,9 +42,7 @@ library UserLib {
     function increaseOutgoingRate(User storage user, uint96 diff, int256 threshold, User storage protocol) internal {
         _syncBalance(user, protocol);
         user.outgoingRate += diff;
-        if(isSafeLiquidatable(user, threshold)) {
-            revert TopUpBalance();
-        }
+        if (isSafeLiquidatable(user, threshold)) revert TopUpBalance();
     }
 
     function decreaseOutgoingRate(User storage user, uint96 diff, User storage protocol) internal {
@@ -51,16 +52,14 @@ library UserLib {
 
     function increaseIncomeRate(User storage user, uint96 diff, User storage protocol) internal {
         _syncBalance(user, protocol);
-        user.incomeRate += diff;   
+        user.incomeRate += diff;
     }
 
     function decreaseIncomeRate(User storage user, uint96 diff, int256 threshold, User storage protocol) internal {
         _syncBalance(user, protocol);
         user.incomeRate -= diff;
 
-        if(isSafeLiquidatable(user, threshold)) {
-            revert TopUpBalance();
-        }
+        if (isSafeLiquidatable(user, threshold)) revert TopUpBalance();
     }
 
     function increaseBalance(User storage user, uint amount) internal {
@@ -70,15 +69,11 @@ library UserLib {
     function decreaseBalance(User storage user, uint amount, int256 threshold, User storage protocol) internal {
         _syncBalance(user, protocol);
 
-        if(user.balance < int(amount)) {
-            revert InsufficialBalance();
-        }
+        if (user.balance < int(amount)) revert InsufficialBalance();
 
         user.balance -= int(amount);
 
-        if(isSafeLiquidatable(user, threshold)) {
-            revert ReduceTheAmount();
-        }
+        if (isSafeLiquidatable(user, threshold)) revert ReduceTheAmount();
     }
 
     function drainBalance(User storage user, User storage liquidator) internal {
@@ -94,35 +89,34 @@ library UserLib {
         (balance, ) = _fullBalanceOf(user, afterDelay);
     }
 
-    function isSafeLiquidatable(User storage user, int256 threshold) internal view returns (bool) {       
+    function isSafeLiquidatable(User storage user, int256 threshold) internal view returns (bool) {
         return _isLiquidatable(user, threshold, SAFE_LIQUIDATION_TIME);
     }
 
-    function isLiquidatable(User storage user, int256 threshold) internal view returns(bool) {
+    function isLiquidatable(User storage user, int256 threshold) internal view returns (bool) {
         return _isLiquidatable(user, threshold, LIQUIDATION_TIME);
     }
 
-    function _isLiquidatable(User storage user, int256 threshold, uint256 afterDelay) private view returns (bool) {       
+    function _isLiquidatable(User storage user, int256 threshold, uint256 afterDelay) private view returns (bool) {
         (int256 currentRate, ) = _currentRateAndProtocolFee(user);
         return currentRate < 0 && balanceOf(user, afterDelay) < threshold;
     }
 
     function _currentRateAndProtocolFee(User storage user) private view returns (int, uint256) {
         return (
-            int256(int(user.incomeRate) * int16(user.settings.userFee) / int16(FLOOR) - int(user.outgoingRate)),
-            uint(user.incomeRate * user.settings.protocolFee / FLOOR)
+            int256((int(user.incomeRate) * int16(user.settings.userFee)) / int16(FLOOR) - int(user.outgoingRate)),
+            uint((user.incomeRate * user.settings.protocolFee) / FLOOR)
         );
     }
 
-    function _fullBalanceOf(User storage user, uint256 afterDelay) private view returns (int balance, uint256 protocolFee) {
-        if (user.updTimestamp == uint48(block.timestamp) || user.updTimestamp == 0) {
-            return (user.balance, 0);
-        }
+    function _fullBalanceOf(
+        User storage user,
+        uint256 afterDelay
+    ) private view returns (int balance, uint256 protocolFee) {
+        if (user.updTimestamp == uint48(block.timestamp) || user.updTimestamp == 0) return (user.balance, 0);
 
-        (int256 currentRate, uint256 protocolRate)  = _currentRateAndProtocolFee(user);
-        if (currentRate == 0 && protocolRate == 0) {
-            return (user.balance, 0);
-        }
+        (int256 currentRate, uint256 protocolRate) = _currentRateAndProtocolFee(user);
+        if (currentRate == 0 && protocolRate == 0) return (user.balance, 0);
 
         uint256 timePassed = block.timestamp - user.updTimestamp + afterDelay;
         balance = user.balance + currentRate * int256(timePassed);
@@ -131,12 +125,8 @@ library UserLib {
 
     function _syncBalance(User storage user, User storage protocol) private {
         (int256 balance, uint256 protocolFee) = _fullBalanceOf(user, 0);
-        if (balance != user.balance) {
-            user.balance = balance;
-        }
-        if (protocolFee > 0) {
-            protocol.balance += int(protocolFee);
-        }
+        if (balance != user.balance) user.balance = balance;
+        if (protocolFee > 0) protocol.balance += int(protocolFee);
 
         user.updTimestamp = uint40(block.timestamp);
     }
@@ -147,8 +137,8 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
     using UserLib for UserLib.User;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    uint public constant APPROX_LIQUIDATE_GAS = 140000; 
-    uint public constant APPROX_SUBSCRIPTION_GAS = 8000;
+    uint256 public constant APPROX_LIQUIDATE_GAS = 140000;
+    uint256 public constant APPROX_SUBSCRIPTION_GAS = 8000;
     uint8 public constant TOKEN_PRECISION = 18;
 
     AggregatorV3Interface public immutable CHAIN_PRICE_FEED;
@@ -164,10 +154,10 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
     uint256 public totalBalance;
 
     constructor(
-        address protocolSigner_, 
-        address protocolWallet_, 
-        address CHAIN_PRICE_FEED_, 
-        address TOKEN_PRICE_FEED_, 
+        address protocolSigner_,
+        address protocolWallet_,
+        address CHAIN_PRICE_FEED_,
+        address TOKEN_PRICE_FEED_,
         address TOKEN_,
         uint8 TOKEN_DECIMALS_
     ) PayoutSigVerifier(protocolSigner_) {
@@ -183,7 +173,8 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
     }
 
     function rescueFunds(IERC20 TOKEN_, uint256 amount) external onlyOwner {
-        if (TOKEN_ == TOKEN && amount > TOKEN.balanceOf(address(this)) - totalBalance) revert UserLib.InsufficialBalance();
+        if (TOKEN_ == TOKEN && amount > TOKEN.balanceOf(address(this)) - totalBalance)
+            revert UserLib.InsufficialBalance();
 
         TOKEN_.safeTransfer(protocolWallet, amount);
     }
@@ -198,16 +189,16 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
     }
 
     function deposit(uint amount) external override {
-        _deposit(msg.sender, amount);
+        _deposit(msg.sender, msg.sender, amount);
     }
 
     function depositFor(uint amount, address to) external override {
-        _deposit(to, amount);
+        _deposit(msg.sender, to, amount);
     }
 
     function permitAndDeposit(bytes calldata permitData, uint amount) external {
         TOKEN.tryPermit(permitData);
-        _deposit(msg.sender, amount);
+        _deposit(msg.sender, msg.sender, amount);
     }
 
     function changeSubscriptionRate(uint96 subscriptionRate) external override {
@@ -216,7 +207,7 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         emit ChangeSubscriptionRate(msg.sender, subscriptionRate);
     }
 
-    function balanceOf(address account) external view override returns(uint) {
+    function balanceOf(address account) external view override returns (uint) {
         return uint(SignedMath.max(users[account].balanceOf(), int(0)));
     }
 
@@ -224,27 +215,20 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         _subscribeChecks(msg.sender, author);
 
         uint96 subscriptionRate = users[author].settings.subscriptionRate;
-       
-        if (subscriptionRate > maxRate) {
-            revert ExcessOfRate();
-        } else {
-            _subscribeEffects(msg.sender, author, subscriptionRate);
-        }
+        if (subscriptionRate > maxRate) revert ExcessOfRate();
+        else _subscribeEffects(msg.sender, author, subscriptionRate);
+
         emit Subscribe(msg.sender, author);
     }
 
     function subscribeBySig(SubSig calldata subsig, bytes memory rvs) external {
         verifySubscribe(subsig, rvs);
-
         _subscribeChecks(subsig.user, subsig.author);
 
         uint96 subscriptionRate = users[subsig.author].settings.subscriptionRate;
+        if (subscriptionRate > subsig.maxRate) revert ExcessOfRate();
+        else _subscribeEffects(subsig.user, subsig.author, subscriptionRate);
 
-        if (subscriptionRate > subsig.maxRate) {
-            revert ExcessOfRate();
-        } else {
-            _subscribeEffects(subsig.user, subsig.author, subscriptionRate);
-        }
         emit Subscribe(subsig.user, subsig.author);
     }
 
@@ -260,7 +244,6 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         verifyUnsubscribe(unsubsig, rvs);
 
         uint actualRate = _unsubscribeChecks(unsubsig.user, unsubsig.author);
-
         _unsubscribeEffects(unsubsig.user, unsubsig.author, uint96(actualRate));
 
         emit Unsubscribe(unsubsig.user, unsubsig.author);
@@ -269,7 +252,11 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
     function payBySig(Payment calldata payment, bytes memory rvs) external {
         verifyPayment(payment, rvs);
 
-        users[payment.spender].decreaseBalance(payment.amount + payment.executionFee, _liquidationThreshold(msg.sender), users[protocolWallet]);
+        users[payment.spender].decreaseBalance(
+            payment.amount + payment.executionFee,
+            _liquidationThreshold(msg.sender),
+            users[protocolWallet]
+        );
         users[payment.receiver].increaseBalance(payment.amount);
         users[msg.sender].increaseBalance(payment.executionFee);
 
@@ -287,9 +274,7 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
 
     function liquidate(address account) external override {
         UserLib.User storage user = users[account];
-        if (!user.isLiquidatable(_liquidationThreshold(account))) {
-            revert NotLiquidatable();
-        }
+        if (!user.isLiquidatable(_liquidationThreshold(account))) revert NotLiquidatable();
 
         EnumerableMap.AddressToUintMap storage user_subscriptions = _subscriptions[account];
         for (uint i = user_subscriptions.length(); i > 0; i--) {
@@ -302,21 +287,18 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         emit Liquidate(account, msg.sender);
     }
 
-    function _deposit(address account, uint amount) private {
-        users[account].increaseBalance(amount);
+    function _deposit(address from, address to, uint amount) private {
+        users[to].increaseBalance(amount);
         totalBalance += amount;
 
-        TOKEN.safeTransferFrom(account, address(this), amount);
+        TOKEN.safeTransferFrom(from, address(this), amount);
 
-        emit Deposit(account, amount);
+        emit Deposit(to, amount);
     }
 
-    function _unsubscribeChecks(address user, address author) private view returns(uint) {
+    function _unsubscribeChecks(address user, address author) private view returns (uint) {
         (bool success, uint actualRate) = _subscriptions[user].tryGet(author);
-        if (!success) {
-            revert NotSubscribed();
-        }
-
+        if (!success) revert NotSubscribed();
         return actualRate;
     }
 
@@ -328,9 +310,7 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
 
     function _subscribeChecks(address user, address author) private {
         (bool success, uint actualRate) = _subscriptions[user].tryGet(author);
-        if (success) {
-            _unsubscribeEffects(user, author, uint96(actualRate));
-        }
+        if (success) _unsubscribeEffects(user, author, uint96(actualRate));
     }
 
     function _subscribeEffects(address user, address author, uint96 subscriptionRate) private {
@@ -351,21 +331,13 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
 
         uint256 tokenScalePrice = scalePrice(uint(userTokenPrice), pairDecimals);
 
-        if(TOKEN_DECIMALS < TOKEN_PRECISION) {
+        if (TOKEN_DECIMALS < TOKEN_PRECISION)
             return int(coinScalePrice / tokenScalePrice / 10 ** (TOKEN_PRECISION - TOKEN_DECIMALS));
-        } else {
-            return int(coinScalePrice / tokenScalePrice);
-        }
+        else return int(coinScalePrice / tokenScalePrice);
     }
 
-    function scalePrice(
-        uint _price,
-        uint8 _priceDecimals
-    ) internal view returns (uint) {
-        if (_priceDecimals < TOKEN_PRECISION) {
-            return _price * (10 ** (TOKEN_PRECISION - _priceDecimals));
-        } else {
-            return _price / (10 ** (TOKEN_PRECISION - TOKEN_DECIMALS));
-        }
+    function scalePrice(uint _price, uint8 _priceDecimals) internal view returns (uint) {
+        if (_priceDecimals < TOKEN_PRECISION) return _price * (10 ** (TOKEN_PRECISION - _priceDecimals));
+        else return _price / (10 ** (TOKEN_PRECISION - TOKEN_DECIMALS));
     }
 }

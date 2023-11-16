@@ -30,7 +30,7 @@ contract TokenPriceFeed is AggregatorV3Interface {
     //14.11.2023
     //MATIC/USD = 90180000
     //MATIC Decimals = 18
-   
+
     //ETH/USD = 208074000000
     //Ethereum Decimals = 18
 
