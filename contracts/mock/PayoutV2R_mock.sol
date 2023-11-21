@@ -211,14 +211,14 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         return uint(SignedMath.max(users[account].balanceOf(), int(0)));
     }
 
-    function subscribe(address author, uint maxRate) external override {
+    function subscribe(address author, uint maxRate, bytes32 id) external override {
         _subscribeChecks(msg.sender, author);
 
         uint96 subscriptionRate = users[author].settings.subscriptionRate;
         if (subscriptionRate > maxRate) revert ExcessOfRate();
         else _subscribeEffects(msg.sender, author, subscriptionRate);
 
-        emit Subscribe(msg.sender, author);
+        emit Subscribe(msg.sender, author, id);
     }
 
     function subscribeBySig(SubSig calldata subsig, bytes memory rvs) external {
@@ -229,15 +229,15 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         if (subscriptionRate > subsig.maxRate) revert ExcessOfRate();
         else _subscribeEffects(subsig.user, subsig.author, subscriptionRate);
 
-        emit Subscribe(subsig.user, subsig.author);
+        emit Subscribe(subsig.user, subsig.author, subsig.id);
     }
 
-    function unsubscribe(address author) public {
+    function unsubscribe(address author, bytes32 id) external override {
         uint actualRate = _unsubscribeChecks(msg.sender, author);
 
         _unsubscribeEffects(msg.sender, author, uint96(actualRate));
 
-        emit Unsubscribe(msg.sender, author);
+        emit Unsubscribe(msg.sender, author, id);
     }
 
     function unsubscribeBySig(UnSubSig calldata unsubsig, bytes memory rvs) external {
@@ -246,7 +246,7 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         uint actualRate = _unsubscribeChecks(unsubsig.user, unsubsig.author);
         _unsubscribeEffects(unsubsig.user, unsubsig.author, uint96(actualRate));
 
-        emit Unsubscribe(unsubsig.user, unsubsig.author);
+        emit Unsubscribe(unsubsig.user, unsubsig.author, unsubsig.id);
     }
 
     function payBySig(Payment calldata payment, bytes memory rvs) external {
@@ -260,7 +260,7 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         users[payment.receiver].increaseBalance(payment.amount);
         users[msg.sender].increaseBalance(payment.executionFee);
 
-        emit PayBySig(msg.sender, payment.spender, payment.receiver, payment.amount);
+        emit PayBySig(payment.spender, payment.receiver, msg.sender, payment.id, payment.amount);
     }
 
     function withdraw(uint256 amount) external override {

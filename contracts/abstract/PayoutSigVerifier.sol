@@ -13,6 +13,7 @@ abstract contract PayoutSigVerifier is EIP712 {
         address receiver;
         uint256 amount;
         uint256 executionFee;
+        bytes32 id;
     }
 
     struct Settings {
@@ -27,12 +28,14 @@ abstract contract PayoutSigVerifier is EIP712 {
         address user;
         address author;
         uint256 maxRate;
+        bytes32 id;
     }
 
     struct UnSubSig {
         uint256 nonce;
         address user;
         address author;
+        bytes32 id;
     }
 
     string private constant SIGNING_DOMAIN = "PayoutSigVerifier";
@@ -56,7 +59,7 @@ abstract contract PayoutSigVerifier is EIP712 {
                 keccak256(
                     abi.encode(
                         keccak256(
-                            "Payment(uint256 nonce,address spender,address receiver,uint256 amount,uint256 executionFee)"
+                            "Payment(uint256 nonce,address spender,address receiver,uint256 amount,uint256 executionFee,bytes32 id)"
                         ),
                         payment
                     )
@@ -80,7 +83,7 @@ abstract contract PayoutSigVerifier is EIP712 {
         return
             _hashTypedDataV4(
                 keccak256(
-                    abi.encode(keccak256("SubSig(uint256 nonce,address user,address author,uint256 maxRate)"), subsig)
+                    abi.encode(keccak256("SubSig(uint256 nonce,address user,address author,uint256 maxRate,bytes32 id)"), subsig)
                 )
             );
     }
@@ -88,7 +91,7 @@ abstract contract PayoutSigVerifier is EIP712 {
     function _hashUnSubscribe(UnSubSig calldata unsubsig) internal view returns (bytes32) {
         return
             _hashTypedDataV4(
-                keccak256(abi.encode(keccak256("UnSubSig(uint256 nonce,address user,address author)"), unsubsig))
+                keccak256(abi.encode(keccak256("UnSubSig(uint256 nonce,address user,address author,bytes32 id)"), unsubsig))
             );
     }
 
