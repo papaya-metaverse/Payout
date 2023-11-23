@@ -13,6 +13,6 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache: 'yarn'
-      - run: yarn
-      - run: yarn test:ci
+          cache: 'npm'
+      - run: npm
+      - run: npm test:ci
