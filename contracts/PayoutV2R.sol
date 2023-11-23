@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import "@openzeppelin/contracts/utils/math/SignedMath.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20} from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
@@ -35,7 +34,6 @@ library UserLib {
         User storage protocol
     ) internal {
         _syncBalance(user, protocol);
-
         user.settings = settings;
     }
 
@@ -58,7 +56,6 @@ library UserLib {
     function decreaseIncomeRate(User storage user, uint96 diff, int256 threshold, User storage protocol) internal {
         _syncBalance(user, protocol);
         user.incomeRate -= diff;
-
         if (isSafeLiquidatable(user, threshold)) revert TopUpBalance();
     }
 
@@ -68,11 +65,8 @@ library UserLib {
 
     function decreaseBalance(User storage user, uint amount, int256 threshold, User storage protocol) internal {
         _syncBalance(user, protocol);
-
         if (user.balance < int(amount)) revert InsufficialBalance();
-
         user.balance -= int(amount);
-
         if (isSafeLiquidatable(user, threshold)) revert ReduceTheAmount();
     }
 
@@ -114,10 +108,8 @@ library UserLib {
         uint256 afterDelay
     ) private view returns (int balance, uint256 protocolFee) {
         if (user.updTimestamp == uint48(block.timestamp) || user.updTimestamp == 0) return (user.balance, 0);
-
         (int256 currentRate, uint256 protocolRate) = _currentRateAndProtocolFee(user);
         if (currentRate == 0 && protocolRate == 0) return (user.balance, 0);
-
         uint256 timePassed = block.timestamp - user.updTimestamp + afterDelay;
         balance = user.balance + currentRate * int256(timePassed);
         protocolFee = protocolRate * timePassed;
@@ -127,21 +119,21 @@ library UserLib {
         (int256 balance, uint256 protocolFee) = _fullBalanceOf(user, 0);
         if (balance != user.balance) user.balance = balance;
         if (protocolFee > 0) protocol.balance += int(protocolFee);
-
         user.updTimestamp = uint40(block.timestamp);
     }
 }
 
-contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
+contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, Ownable {
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
     uint256 public constant APPROX_LIQUIDATE_GAS = 140000;
     uint256 public constant APPROX_SUBSCRIPTION_GAS = 8000;
-    uint8 public constant TOKEN_PRECISION = 18;
+    uint8 public constant COIN_DECIMALS = 18;
+    uint8 public constant SUBSCRIPTION_THRESHOLD = 100;
 
-    AggregatorV3Interface public immutable CHAIN_PRICE_FEED;
+    AggregatorV3Interface public immutable COIN_PRICE_FEED;
     AggregatorV3Interface public immutable TOKEN_PRICE_FEED;
 
     IERC20 public immutable TOKEN;
@@ -161,7 +153,7 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         address TOKEN_,
         uint8 TOKEN_DECIMALS_
     ) PayoutSigVerifier(protocolSigner_) {
-        CHAIN_PRICE_FEED = AggregatorV3Interface(CHAIN_PRICE_FEED_);
+        COIN_PRICE_FEED = AggregatorV3Interface(CHAIN_PRICE_FEED_);
         TOKEN_PRICE_FEED = AggregatorV3Interface(TOKEN_PRICE_FEED_);
         TOKEN = IERC20(TOKEN_);
         protocolWallet = protocolWallet_;
@@ -172,69 +164,66 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         protocolWallet = protocolWallet_;
     }
 
-    function rescueFunds(IERC20 TOKEN_, uint256 amount) external onlyOwner {
-        if (TOKEN_ == TOKEN && amount > TOKEN.balanceOf(address(this)) - totalBalance)
+    function rescueFunds(IERC20 token, uint256 amount) external onlyOwner {
+        if (token == TOKEN && amount > TOKEN.balanceOf(address(this)) - totalBalance) {
             revert UserLib.InsufficialBalance();
+        }
 
-        TOKEN_.safeTransfer(protocolWallet, amount);
+        token.safeTransfer(protocolWallet, amount);
     }
 
     function updateSettings(Settings calldata settings, bytes memory rvs) external {
         if (settings.protocolFee >= settings.userFee) revert WrongPercent();
         if (settings.protocolFee + settings.userFee != UserLib.FLOOR) revert WrongPercent();
         verifySettings(settings, rvs);
-        users[msg.sender].setSettings(settings, users[protocolWallet]);
+        users[settings.user].setSettings(settings, users[protocolWallet]);
 
-        emit UpdateSettings(msg.sender, settings.userFee, settings.protocolFee);
+        emit UpdateSettings(settings.user, settings.userFee, settings.protocolFee);
     }
 
-    function deposit(uint amount) external override {
-        _deposit(msg.sender, msg.sender, amount);
+    function deposit(uint amount) external {
+        _deposit(msg.sender, amount, false);
     }
 
-    function depositFor(uint amount, address to) external override {
-        _deposit(msg.sender, to, amount);
+    function depositFor(uint amount, address to) external {
+        _deposit(to, amount, false);
     }
 
-    function permitAndDeposit(bytes calldata permitData, uint amount) external {
+    function depositWithPermit(bytes calldata permitData, uint amount) external {
         TOKEN.tryPermit(permitData);
-        _deposit(msg.sender, msg.sender, amount);
+        _deposit(msg.sender, amount, false);
     }
 
-    function changeSubscriptionRate(uint96 subscriptionRate) external override {
+    function depositWithPermit2(bytes calldata permitData, uint amount) external {
+        TOKEN.tryPermit(permitData);
+        _deposit(msg.sender, amount, true);
+    }
+
+    function changeSubscriptionRate(uint96 subscriptionRate) external {
         users[msg.sender].settings.subscriptionRate = subscriptionRate;
 
         emit ChangeSubscriptionRate(msg.sender, subscriptionRate);
     }
 
-    function balanceOf(address account) external view override returns (uint) {
+    function balanceOf(address account) external view  returns (uint) {
         return uint(SignedMath.max(users[account].balanceOf(), int(0)));
     }
 
-    function subscribe(address author, uint maxRate, bytes32 id) external override {
-        _subscribeChecks(msg.sender, author);
-
-        uint96 subscriptionRate = users[author].settings.subscriptionRate;
-        if (subscriptionRate > maxRate) revert ExcessOfRate();
-        else _subscribeEffects(msg.sender, author, subscriptionRate);
+    function subscribe(address author, uint maxRate, bytes32 id) external {
+        _subscribeChecksAndEffects(msg.sender, author, maxRate);
 
         emit Subscribe(msg.sender, author, id);
     }
 
     function subscribeBySig(SubSig calldata subsig, bytes memory rvs) external {
         verifySubscribe(subsig, rvs);
-        _subscribeChecks(subsig.user, subsig.author);
-
-        uint96 subscriptionRate = users[subsig.author].settings.subscriptionRate;
-        if (subscriptionRate > subsig.maxRate) revert ExcessOfRate();
-        else _subscribeEffects(subsig.user, subsig.author, subscriptionRate);
+        _subscribeChecksAndEffects(subsig.user, subsig.author, subsig.maxRate);
 
         emit Subscribe(subsig.user, subsig.author, subsig.id);
     }
 
-    function unsubscribe(address author, bytes32 id) external override {
+    function unsubscribe(address author, bytes32 id) external {
         uint actualRate = _unsubscribeChecks(msg.sender, author);
-
         _unsubscribeEffects(msg.sender, author, uint96(actualRate));
 
         emit Unsubscribe(msg.sender, author, id);
@@ -254,16 +243,18 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
 
         users[payment.spender].decreaseBalance(
             payment.amount + payment.executionFee,
-            _liquidationThreshold(msg.sender),
+            _liquidationThreshold(payment.spender),
             users[protocolWallet]
         );
         users[payment.receiver].increaseBalance(payment.amount);
         users[msg.sender].increaseBalance(payment.executionFee);
 
         emit PayBySig(payment.spender, payment.receiver, msg.sender, payment.id, payment.amount);
+        emit Transfer(payment.spender, payment.receiver, payment.amount);
+        emit Transfer(payment.spender, msg.sender, payment.executionFee);
     }
 
-    function withdraw(uint256 amount) external override {
+    function withdraw(uint256 amount) external {
         users[msg.sender].decreaseBalance(amount, _liquidationThreshold(msg.sender), users[protocolWallet]);
         totalBalance -= amount;
 
@@ -272,7 +263,7 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         emit Withdraw(msg.sender, amount);
     }
 
-    function liquidate(address account) external override {
+    function liquidate(address account) external {
         UserLib.User storage user = users[account];
         if (!user.isLiquidatable(_liquidationThreshold(account))) revert NotLiquidatable();
 
@@ -287,11 +278,15 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         emit Liquidate(account, msg.sender);
     }
 
-    function _deposit(address from, address to, uint amount) private {
+    function _deposit(address to, uint amount, bool usePermit2) private {
         users[to].increaseBalance(amount);
         totalBalance += amount;
 
-        TOKEN.safeTransferFrom(from, address(this), amount);
+        if(usePermit2) {
+            TOKEN.safeTransferFromPermit2(msg.sender, address(this), amount);
+        } else {
+            TOKEN.safeTransferFrom(msg.sender, address(this), amount);
+        }
 
         emit Deposit(to, amount);
     }
@@ -299,6 +294,7 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
     function _unsubscribeChecks(address user, address author) private view returns (uint) {
         (bool success, uint actualRate) = _subscriptions[user].tryGet(author);
         if (!success) revert NotSubscribed();
+
         return actualRate;
     }
 
@@ -308,36 +304,33 @@ contract PayoutV2R_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         _subscriptions[user].remove(author);
     }
 
-    function _subscribeChecks(address user, address author) private {
+    function _subscribeChecksAndEffects(address user, address author, uint maxRate) private {
         (bool success, uint actualRate) = _subscriptions[user].tryGet(author);
         if (success) _unsubscribeEffects(user, author, uint96(actualRate));
-    }
 
-    function _subscribeEffects(address user, address author, uint96 subscriptionRate) private {
+        if (_subscriptions[user].length() == SUBSCRIPTION_THRESHOLD) revert ExcessOfSubscriptions();
+
+        uint96 subscriptionRate = users[author].settings.subscriptionRate;
+        if (subscriptionRate > maxRate) revert ExcessOfRate();
+
         users[user].increaseOutgoingRate(subscriptionRate, _liquidationThreshold(user), users[protocolWallet]);
         users[author].increaseIncomeRate(subscriptionRate, users[protocolWallet]);
         _subscriptions[user].set(author, subscriptionRate);
     }
 
     function _liquidationThreshold(address user) private view returns (int) {
-        (, int256 userTokenPrice, , , ) = TOKEN_PRICE_FEED.latestRoundData();
-        (, int256 nativeAssetPrice, , , ) = CHAIN_PRICE_FEED.latestRoundData();
-        uint8 pairDecimals = TOKEN_PRICE_FEED.decimals();
+        (, int256 tokenPrice, , , ) = TOKEN_PRICE_FEED.latestRoundData();
+        (, int256 coinPrice, , , ) = COIN_PRICE_FEED.latestRoundData();
 
         uint256 expectedNativeAssetCost = block.basefee *
             (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[user].length());
 
-        uint256 coinScalePrice = scalePrice(expectedNativeAssetCost * uint(nativeAssetPrice), pairDecimals);
+        uint256 executionPrice = expectedNativeAssetCost * uint(coinPrice);
 
-        uint256 tokenScalePrice = scalePrice(uint(userTokenPrice), pairDecimals);
-
-        if (TOKEN_DECIMALS < TOKEN_PRECISION)
-            return int(coinScalePrice / tokenScalePrice / 10 ** (TOKEN_PRECISION - TOKEN_DECIMALS));
-        else return int(coinScalePrice / tokenScalePrice);
-    }
-
-    function scalePrice(uint _price, uint8 _priceDecimals) internal view returns (uint) {
-        if (_priceDecimals < TOKEN_PRECISION) return _price * (10 ** (TOKEN_PRECISION - _priceDecimals));
-        else return _price / (10 ** (TOKEN_PRECISION - TOKEN_DECIMALS));
+        if (TOKEN_DECIMALS < COIN_DECIMALS) {
+            return int(executionPrice) / tokenPrice / int(10 ** (COIN_DECIMALS - TOKEN_DECIMALS));
+        } else {
+            return int(executionPrice) / tokenPrice;
+        }
     }
 }

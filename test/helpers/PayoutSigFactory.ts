@@ -24,13 +24,14 @@ export class SignatureFactory {
   ) {
     const nonce = await this.contract.nonces(user);
     const domain = await this._signingDomain();
-    const data = {nonce, subscriptionRate, userFee, protocolFee}
+    const data = {nonce, subscriptionRate, userFee, protocolFee, user}
     const types = {
       SignInData: [
         {name: 'nonce', type: 'uint256'},
         {name: 'subscriptionRate', type: 'uint48'},
         {name: 'userFee', type: 'uint16'},
         {name: 'protocolFee', type: 'uint16'},
+        {name: 'user', type: 'address'}
       ]
     }
 
@@ -45,18 +46,20 @@ export class SignatureFactory {
     spender: string,
     receiver: string,
     amount: BigNumber,
-    executionFee: BigNumber
+    executionFee: BigNumber,
+    id: string
   ) {
     const nonce = await this.contract.nonces(spender);
     const domain = await this._signingDomain();
-    const data = {nonce, spender, receiver, amount, executionFee};
+    const data = {nonce, spender, receiver, amount, executionFee, id};
     const types = {
       Payment: [
         {name: 'nonce', type: 'uint256'},
         {name: 'spender', type: 'address'},
         {name: 'receiver', type: 'address'},
         {name: 'amount', type: 'uint256'},
-        {name: 'executionFee', type: 'uint256'}
+        {name: 'executionFee', type: 'uint256'},
+        {name: 'id', type: 'bytes32'}
       ]
     }
     const signature = await this.signer._signTypedData(domain, types, data);

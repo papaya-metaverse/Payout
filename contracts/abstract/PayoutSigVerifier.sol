@@ -21,6 +21,7 @@ abstract contract PayoutSigVerifier is EIP712 {
         uint96 subscriptionRate;
         uint16 userFee;
         uint16 protocolFee;
+        address user;
     }
 
     struct SubSig {
@@ -43,7 +44,7 @@ abstract contract PayoutSigVerifier is EIP712 {
 
     mapping(address => uint256) public nonces;
 
-    address immutable protocolSigner;
+    address protocolSigner;
 
     constructor(address protocolSigner_) EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {
         protocolSigner = protocolSigner_;
@@ -72,7 +73,7 @@ abstract contract PayoutSigVerifier is EIP712 {
             _hashTypedDataV4(
                 keccak256(
                     abi.encode(
-                        keccak256("Settings(uint128 nonce,uint96 subscriptionRate,uint16 userFee,uint16 protocolFee)"),
+                        keccak256("Settings(uint128 nonce,uint96 subscriptionRate,uint16 userFee,uint16 protocolFee,address user)"),
                         settings
                     )
                 )
@@ -100,7 +101,7 @@ abstract contract PayoutSigVerifier is EIP712 {
     }
 
     function verifySettings(Settings calldata settings, bytes memory rvs) internal returns (bool) {
-        return _verify(_hashSettings(settings), protocolSigner, msg.sender, settings.nonce, rvs);
+        return _verify(_hashSettings(settings), protocolSigner, settings.user, settings.nonce, rvs);
     }
 
     function verifySubscribe(SubSig calldata subsig, bytes memory rvs) internal returns (bool) {

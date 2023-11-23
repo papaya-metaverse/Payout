@@ -12,12 +12,14 @@ interface IPayoutV2R {
     event Withdraw(address indexed user, uint256 amount);
     event Liquidate(address indexed user, address indexed liquidator);
     event PayBySig(address indexed spender, address indexed receiver, address executor, bytes32 id, uint256 amount);
+    event Transfer(address indexed user, address indexed receiver, uint256 amount);
 
     error WrongPercent();
     error NotSubscribed();
     error NotLiquidatable();
     error NotLegal();
     error ExcessOfRate();
+    error ExcessOfSubscriptions();
 
     function deposit(uint amount) external;
 

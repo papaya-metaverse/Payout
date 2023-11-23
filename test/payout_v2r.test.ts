@@ -1,14 +1,14 @@
 import hre from 'hardhat'
 import { ethers } from 'hardhat';
 import { BigNumber, Signer } from 'ethers';
-import { PayoutV2R_mock, AYA, PriceFeed } from '../typechain-types'
-import { expect, deployContract } from '@1inch/solidity-utils'
+import { Payout_mock, AYA, PriceFeed } from '../typechain-types'
+import { expect, deployContract, ether } from '@1inch/solidity-utils'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { SignatureFactory } from './helpers/PayoutSigFactory'
 import { networkConfig } from "../helper-hardhat-config"
 import { time } from "@nomicfoundation/hardhat-network-helpers"
 
-describe("PayoutV2R", function() {
+describe("Payout_mock", function() {
     const { ethers, network } = hre 
     const ZERO_ADDRESS = ethers.constants.AddressZero
     
@@ -28,6 +28,8 @@ describe("PayoutV2R", function() {
     const REFERRER = 4
     const USER = 5
 
+    const id = ethers.utils.formatBytes32String("0");
+
     let owner: SignerWithAddress
     let signer: SignerWithAddress
     let user: SignerWithAddress
@@ -36,7 +38,7 @@ describe("PayoutV2R", function() {
     let protocolWallet: SignerWithAddress
 
     let token: AYA
-    let payout: PayoutV2R_mock
+    let payout: Payout_mock
     let nativePriceFeed: PriceFeed
     let tokenPriceFeed: PriceFeed
 
@@ -87,7 +89,7 @@ describe("PayoutV2R", function() {
             6
         ]
 
-        let contract = await ethers.deployContract("PayoutV2R", args)
+        let contract = await ethers.deployContract("Payout_mock", args)
 
         return contract
     }
@@ -132,7 +134,8 @@ describe("PayoutV2R", function() {
         user: string,
         creator: string,
         amount: BigNumber,
-        executionFee: BigNumber
+        executionFee: BigNumber,
+        id: string
     ) {
         const payment = new SignatureFactory({
             contract: payout,
@@ -142,7 +145,8 @@ describe("PayoutV2R", function() {
             user,
             creator,
             amount,
-            executionFee
+            executionFee,
+            id
         )
       
         return signedSignature
@@ -248,13 +252,13 @@ describe("PayoutV2R", function() {
             signed_settings = await signSettings(signer, referrer.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE)
             await payout.connect(referrer).updateSettings(signed_settings, signed_settings.signature)
 
-            await expect(payout.connect(user).subscribe(creator.address)).to.be.revertedWithCustomError(payout, "TopUpBalance")
+            await expect(payout.connect(user).subscribe(creator.address, SUB_RATE, id)).to.be.revertedWithCustomError(payout, "TopUpBalance")
 
             await token.transfer(user.address, ELEVEN_USDT)
             await token.connect(user).approve(payout.address, ELEVEN_USDT)
             await payout.connect(user).deposit(ELEVEN_USDT)
 
-            let tx = await payout.connect(user).subscribe(creator.address)
+            let tx = await payout.connect(user).subscribe(creator.address, SUB_RATE, id)
 
             let receipt = await tx.wait()
 
@@ -276,7 +280,9 @@ describe("PayoutV2R", function() {
 
             await time.increase(189600)
 
-            await expect(payout.connect(user).subscribe(referrer.address)).to.be.revertedWithCustomError(payout, "TopUpBalance")    
+            // await time.increase(2 * DAY)
+
+            await expect(payout.connect(user).subscribe(referrer.address, SUB_RATE, id)).to.be.revertedWithCustomError(payout, "TopUpBalance")    
         })
     })
 
@@ -284,7 +290,7 @@ describe("PayoutV2R", function() {
         it("Negative", async() => {
             await baseSetup()
 
-            await expect(payout.connect(user).unsubscribe(creator.address)).to.be.revertedWithCustomError(payout, "NotSubscribed")
+            await expect(payout.connect(user).unsubscribe(creator.address, id)).to.be.revertedWithCustomError(payout, "NotSubscribed")
 
             let signed_settings = await signSettings(signer, user.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE)
             await payout.connect(user).updateSettings(signed_settings, signed_settings.signature)
@@ -294,17 +300,17 @@ describe("PayoutV2R", function() {
             let signed_settings = await signSettings(signer, creator.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE)
             await payout.connect(creator).updateSettings(signed_settings, signed_settings.signature)
 
-            await expect(payout.connect(user).unsubscribe(creator.address)).to.be.revertedWithCustomError(payout, "NotSubscribed")
+            await expect(payout.connect(user).unsubscribe(creator.address, id)).to.be.revertedWithCustomError(payout, "NotSubscribed")
 
             await token.transfer(user.address, ELEVEN_USDT)
             await token.connect(user).approve(payout.address, ELEVEN_USDT)
             await payout.connect(user).deposit(ELEVEN_USDT)
 
-            await payout.connect(user).subscribe(creator.address)
+            await payout.connect(user).subscribe(creator.address, SUB_RATE, id)
 
             await advanceTime(86400)
 
-            await payout.connect(user).unsubscribe(creator.address)
+            await payout.connect(user).unsubscribe(creator.address, id)
 
             expect((await payout.balanceOf(user.address))).to.be.eq(5988800) 
             expect((await payout.balanceOf(creator.address))).to.be.eq(3974400) 
@@ -316,7 +322,7 @@ describe("PayoutV2R", function() {
         it("Negative", async() => {
             await baseSetup()
 
-            let payment = await signPayment(user, user.address, creator.address, ethers.BigNumber.from(SIX_USDT), ethers.BigNumber.from(0))
+            let payment = await signPayment(user, user.address, creator.address, ethers.BigNumber.from(SIX_USDT), ethers.BigNumber.from(0), id)
             
             await expect(payout.connect(user).payBySig(payment, payment.signature)).to.be.revertedWithCustomError(payout, "InsufficialBalance")
         })
@@ -326,7 +332,7 @@ describe("PayoutV2R", function() {
             await token.connect(user).approve(payout.address, SIX_USDT)
             await payout.connect(user).deposit(SIX_USDT)
 
-            let payment = await signPayment(user, user.address, creator.address, ethers.BigNumber.from(FIVE_USDT), ethers.BigNumber.from(0))
+            let payment = await signPayment(user, user.address, creator.address, ethers.BigNumber.from(FIVE_USDT), ethers.BigNumber.from(0), id)
             let splitSig = ethers.utils.splitSignature(payment.signature)
 
             await payout.connect(user).payBySig(payment, payment.signature)
@@ -378,24 +384,15 @@ describe("PayoutV2R", function() {
             await token.connect(user).approve(payout.address, ELEVEN_USDT)
             await payout.connect(user).deposit(ELEVEN_USDT)
 
-            await payout.connect(user).subscribe(creator.address)
+            await payout.connect(user).subscribe(creator.address, SUB_RATE, id)
             
             await expect(payout.connect(creator).liquidate(user.address)).to.be.revertedWithCustomError(payout, "NotLiquidatable")
         })
 
         it("Positive", async() => {
             await time.increase(2 * DAY) 
-            // hre.tracer.enabled = true;
-            // await myContract.doStuff(val2);
-            // hre.tracer.enabled = false;
-            //Где то есть переполнения
-            await payout.connect(referrer).liquidate(user.address)
 
-            console.log(await payout.users(user.address))
-            // expect(await payout.balanceOf(creator.address)).to.be.eq(8640050)
-            // expect(await payout.balanceOf(referrer.address)).to.be.eq(977542)
-            // expect(await payout.balanceOf(protocolWallet.address)).to.be.eq(1382408)
-            // expect(await payout.balanceOf(user.address)).to.be.eq(0)
+            await payout.connect(referrer).liquidate(user.address)
         })
     })
 })
