@@ -14,5 +14,5 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-      - run: npm
+      - run: npm i
       - run: npm test:ci
