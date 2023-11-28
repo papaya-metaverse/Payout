@@ -1,14 +1,14 @@
 import hre from 'hardhat'
 import { ethers } from 'hardhat';
 import { BigNumber, Signer } from 'ethers';
-import { Payout_mock, AYA, PriceFeed } from '../typechain-types'
 import { expect, deployContract, ether } from '@1inch/solidity-utils'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { SignatureFactory } from './helpers/PayoutSigFactory'
 import { networkConfig } from "../helper-hardhat-config"
 import { time } from "@nomicfoundation/hardhat-network-helpers"
+import { HardhatEthersHelpers } from '@nomiclabs/hardhat-ethers/types';
 
-describe("Payout_mock", function() {
+describe("PayoutMock", function() {
     const { ethers, network } = hre 
     const ZERO_ADDRESS = ethers.constants.AddressZero
     
@@ -16,6 +16,7 @@ describe("Payout_mock", function() {
     const FIVE_USDT = 5000000
     const SIX_USDT = 6000000
     const ELEVEN_USDT = FIVE_USDT + SIX_USDT
+    const USDT_DECIMALS = 6
     const SUB_RATE = 58
     
     const USER_FEE = BigNumber.from(8000)
@@ -30,15 +31,15 @@ describe("Payout_mock", function() {
 
     const id = ethers.utils.formatBytes32String("0");
 
-    let owner: SignerWithAddress
-    let signer: SignerWithAddress
-    let user: SignerWithAddress
-    let creator: SignerWithAddress
-    let referrer: SignerWithAddress
-    let protocolWallet: SignerWithAddress
+    let owner
+    let signer
+    let user
+    let creator
+    let referrer
+    let protocolWallet
 
     let token: AYA
-    let payout: Payout_mock
+    let payout: PayoutMock
     let nativePriceFeed: PriceFeed
     let tokenPriceFeed: PriceFeed
 
@@ -56,19 +57,19 @@ describe("Payout_mock", function() {
             admin
         ]
 
-        const contract = await ethers.deployContract("AYA", args)
+        let contract = await ethers.deployContract("AYA", args)
 
         return contract
     }
 
     async function deployNativePriceFeed() {
-        const contract = await ethers.deployContract("NativePriceFeed")
+        let contract = await ethers.deployContract("NativePriceFeed")
 
         return contract
     }
 
     async function deployTokenPriceFeed() {
-        const contract = await ethers.deployContract("TokenPriceFeed")
+        let contract = await ethers.deployContract("TokenPriceFeed")
 
         return contract
     }
@@ -86,10 +87,10 @@ describe("Payout_mock", function() {
             nativePriceFeedAddress,
             tokenPriceFeedAddress,
             tokenAddress,
-            6
+            USDT_DECIMALS
         ]
 
-        let contract = await ethers.deployContract("Payout_mock", args)
+        let contract = await ethers.deployContract("PayoutMock", args)
 
         return contract
     }
@@ -121,12 +122,6 @@ describe("Payout_mock", function() {
         await hre.ethers.provider.send('evm_increaseTime', [time]);
     }
 
-    const timestamp = async () => {
-        let blockNumber = await ethers.provider.getBlockNumber()
-        let block = await ethers.provider.getBlock(blockNumber) 
-
-        return block.timestamp
-    }
     //NOTE Signer MUST be a USER
     //NOTE Transaction can be provided by anyone
     async function signPayment(
@@ -158,7 +153,8 @@ describe("Payout_mock", function() {
         user: string,
         subscriptionRate: BigNumber,
         userFee: BigNumber,
-        protocolFee: BigNumber
+        protocolFee: BigNumber,
+        executionFee: BigNumber
     ) {
         const signin = new SignatureFactory({
             contract: payout,
@@ -169,6 +165,7 @@ describe("Payout_mock", function() {
             subscriptionRate,
             userFee,
             protocolFee,
+            executionFee
         )
 
         return signedSignature
@@ -194,7 +191,7 @@ describe("Payout_mock", function() {
         it("Positive", async () => {
             await baseSetup()
 
-            let signed_settings = await signSettings(signer, referrer.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE)
+            let signed_settings = await signSettings(signer, referrer.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
 
             await payout.connect(referrer).updateSettings(signed_settings, signed_settings.signature)
 
@@ -204,7 +201,7 @@ describe("Payout_mock", function() {
         })
 
         it("Negative", async () => {
-            let signed_settings = await signSettings(signer, user.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE.add(100))
+            let signed_settings = await signSettings(signer, user.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE.add(100), BigNumber.from(0))
 
             await expect(payout.connect(user).updateSettings(signed_settings, signed_settings.signature)).to.be.revertedWithCustomError(payout, "WrongPercent")
         })
@@ -227,15 +224,15 @@ describe("Payout_mock", function() {
         it("Positive", async() => {
             await baseSetup()
 
-            let signed_settings = await signSettings(signer, user.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE)
+            let signed_settings = await signSettings(signer, user.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
 
             await payout.connect(user).updateSettings(signed_settings, signed_settings.signature)
             
-            expect((await payout.users(user.address)).settings.subscriptionRate).to.be.eq(ethers.BigNumber.from(SUB_RATE))
+            expect((await payout.users(user.address)).settings.subscriptionRate).to.be.eq(BigNumber.from(SUB_RATE))
 
             await payout.connect(user).changeSubscriptionRate(0)
 
-            expect((await payout.users(user.address)).settings.subscriptionRate).to.be.eq(ethers.BigNumber.from(0))
+            expect((await payout.users(user.address)).settings.subscriptionRate).to.be.eq(BigNumber.from(0))
         })
     })
 
@@ -243,13 +240,13 @@ describe("Payout_mock", function() {
         it("Positive", async() => {
             await baseSetup()
 
-            let signed_settings = await signSettings(signer, user.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE)
+            let signed_settings = await signSettings(signer, user.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
             await payout.connect(user).updateSettings(signed_settings, signed_settings.signature)
 
-            signed_settings = await signSettings(signer, creator.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE)
+            signed_settings = await signSettings(signer, creator.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
             await payout.connect(creator).updateSettings(signed_settings, signed_settings.signature)
 
-            signed_settings = await signSettings(signer, referrer.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE)
+            signed_settings = await signSettings(signer, referrer.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
             await payout.connect(referrer).updateSettings(signed_settings, signed_settings.signature)
 
             await expect(payout.connect(user).subscribe(creator.address, SUB_RATE, id)).to.be.revertedWithCustomError(payout, "TopUpBalance")
@@ -292,12 +289,12 @@ describe("Payout_mock", function() {
 
             await expect(payout.connect(user).unsubscribe(creator.address, id)).to.be.revertedWithCustomError(payout, "NotSubscribed")
 
-            let signed_settings = await signSettings(signer, user.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE)
+            let signed_settings = await signSettings(signer, user.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
             await payout.connect(user).updateSettings(signed_settings, signed_settings.signature)
         })
 
         it("Positive", async() => {
-            let signed_settings = await signSettings(signer, creator.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE)
+            let signed_settings = await signSettings(signer, creator.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
             await payout.connect(creator).updateSettings(signed_settings, signed_settings.signature)
 
             await expect(payout.connect(user).unsubscribe(creator.address, id)).to.be.revertedWithCustomError(payout, "NotSubscribed")
@@ -322,7 +319,7 @@ describe("Payout_mock", function() {
         it("Negative", async() => {
             await baseSetup()
 
-            let payment = await signPayment(user, user.address, creator.address, ethers.BigNumber.from(SIX_USDT), ethers.BigNumber.from(0), id)
+            let payment = await signPayment(user, user.address, creator.address, BigNumber.from(SIX_USDT), BigNumber.from(0), id)
             
             await expect(payout.connect(user).payBySig(payment, payment.signature)).to.be.revertedWithCustomError(payout, "InsufficialBalance")
         })
@@ -332,13 +329,12 @@ describe("Payout_mock", function() {
             await token.connect(user).approve(payout.address, SIX_USDT)
             await payout.connect(user).deposit(SIX_USDT)
 
-            let payment = await signPayment(user, user.address, creator.address, ethers.BigNumber.from(FIVE_USDT), ethers.BigNumber.from(0), id)
-            let splitSig = ethers.utils.splitSignature(payment.signature)
+            let payment = await signPayment(user, user.address, creator.address, BigNumber.from(FIVE_USDT), BigNumber.from(0), id)
 
             await payout.connect(user).payBySig(payment, payment.signature)
 
             expect(await payout.balanceOf(user.address)).to.be.eq(SIX_USDT - FIVE_USDT)
-            expect(await payout.balanceOf(creator.address)).to.be.eq(ethers.BigNumber.from(FIVE_USDT))
+            expect(await payout.balanceOf(creator.address)).to.be.eq(BigNumber.from(FIVE_USDT))
         })
     })
 
@@ -346,7 +342,7 @@ describe("Payout_mock", function() {
         it("Negative", async() => {
             await baseSetup()
 
-            let signed_settings = await signSettings(signer, user.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE)
+            let signed_settings = await signSettings(signer, user.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
             await payout.connect(user).updateSettings(signed_settings, signed_settings.signature)
 
             await expect(payout.connect(user).withdraw(FIVE_USDT)).to.be.revertedWithCustomError(payout, "InsufficialBalance")
@@ -369,15 +365,15 @@ describe("Payout_mock", function() {
             
             await expect(payout.connect(creator).liquidate(user.address)).to.be.revertedWithCustomError(payout, "NotLiquidatable")
             
-            let signed_settings = await signSettings(signer, user.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE)
+            let signed_settings = await signSettings(signer, user.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
             await payout.connect(user).updateSettings(signed_settings, signed_settings.signature)
             
             await expect(payout.connect(creator).liquidate(user.address)).to.be.revertedWithCustomError(payout, "NotLiquidatable")
             
-            signed_settings = await signSettings(signer, creator.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE)
+            signed_settings = await signSettings(signer, creator.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
             await payout.connect(creator).updateSettings(signed_settings, signed_settings.signature)
         
-            signed_settings = await signSettings(signer, referrer.address, ethers.BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE)
+            signed_settings = await signSettings(signer, referrer.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
             await payout.connect(referrer).updateSettings(signed_settings, signed_settings.signature)
         
             await token.transfer(user.address, ELEVEN_USDT)

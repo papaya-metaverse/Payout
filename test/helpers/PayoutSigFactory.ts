@@ -1,7 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import {BigNumber, BigNumberish, Contract, Signer, Wallet} from 'ethers';
-import { ethers } from 'hardhat';
-import { getChainId } from 'hardhat';
 
 const SIGNING_DOMAIN_NAME = 'PayoutSigVerifier';
 const SIGNING_DOMAIN_VERSION = '1';
@@ -21,17 +19,27 @@ export class SignatureFactory {
     subscriptionRate: BigNumber,
     userFee: BigNumber,
     protocolFee: BigNumber,
+    executionFee: BigNumber
   ) {
     const nonce = await this.contract.nonces(user);
     const domain = await this._signingDomain();
-    const data = {nonce, subscriptionRate, userFee, protocolFee, user}
+    const spenderAddr = this.signer.address
+    const data = {spenderAddr, nonce, executionFee, user, subscriptionRate, userFee, protocolFee}
     const types = {
-      SignInData: [
+      Sig: [
+        {name: 'signer', type: 'address'},
         {name: 'nonce', type: 'uint256'},
-        {name: 'subscriptionRate', type: 'uint48'},
+        {name: 'executionFee', type: 'uint256'}
+      ],
+      Settings: [
+        {name: 'subscriptionRate', type: 'uint96'},
         {name: 'userFee', type: 'uint16'},
-        {name: 'protocolFee', type: 'uint16'},
-        {name: 'user', type: 'address'}
+        {name: 'protocolFee', type: 'uint16'}
+      ],
+      SettingsSig: [
+        {name: 'sig', type: 'Sig'},
+        {name: 'user', type: 'address'},
+        {name: 'settings', type: 'Settings'}
       ]
     }
 
@@ -51,14 +59,17 @@ export class SignatureFactory {
   ) {
     const nonce = await this.contract.nonces(spender);
     const domain = await this._signingDomain();
-    const data = {nonce, spender, receiver, amount, executionFee, id};
+    const data = {spender, nonce, executionFee, receiver, amount, id};
     const types = {
-      Payment: [
+      Sig: [
+        {name: 'signer', type: 'address'},
         {name: 'nonce', type: 'uint256'},
-        {name: 'spender', type: 'address'},
+        {name: 'executionFee', type: 'uint256'}
+      ],
+      PaymentSig: [
+        {name: 'sig', type: 'Sig'},
         {name: 'receiver', type: 'address'},
         {name: 'amount', type: 'uint256'},
-        {name: 'executionFee', type: 'uint256'},
         {name: 'id', type: 'bytes32'}
       ]
     }
