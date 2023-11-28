@@ -3,8 +3,9 @@ pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-abstract contract PayoutSigVerifier is EIP712 {
+abstract contract PayoutSigVerifier is EIP712, Ownable {
     error InvalidNonce();
 
     struct Sig {
@@ -59,6 +60,10 @@ abstract contract PayoutSigVerifier is EIP712 {
     address protocolSigner;
 
     constructor(address protocolSigner_) EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {
+        protocolSigner = protocolSigner_;
+    }
+
+    function updateProtocolSigner(address protocolSigner_) external onlyOwner {
         protocolSigner = protocolSigner_;
     }
 
