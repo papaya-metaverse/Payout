@@ -182,21 +182,26 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, Ownable {
     }
 
     function deposit(uint amount) external {
-        _deposit(msg.sender, amount, false);
+        _deposit(msg.sender, msg.sender, amount, false);
     }
 
     function depositFor(uint amount, address to) external {
-        _deposit(to, amount, false);
+        _deposit(msg.sender, to, amount, false);
     }
 
     function depositWithPermit(bytes calldata permitData, uint amount) external {
         TOKEN.tryPermit(permitData);
-        _deposit(msg.sender, amount, false);
+        _deposit(msg.sender, msg.sender, amount, false);
     }
 
     function depositWithPermit2(bytes calldata permitData, uint amount) external {
         TOKEN.tryPermit(permitData);
-        _deposit(msg.sender, amount, true);
+        _deposit(msg.sender, msg.sender, amount, true);
+    }
+
+    function depositWithPermitFor(bytes calldata permitData, address from, uint amount) external {
+        TOKEN.tryPermit(from, address(this), permitData);
+        _deposit(msg.sender, from, amount, true);
     }
 
     function changeSubscriptionRate(uint96 subscriptionRate) external {
@@ -278,14 +283,14 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier, Ownable {
         emit Liquidate(account, msg.sender);
     }
 
-    function _deposit(address to, uint amount, bool usePermit2) private {
+    function _deposit(address from, address to, uint amount, bool usePermit2) private {
         users[to].increaseBalance(amount);
         totalBalance += amount;
 
         if(usePermit2) {
-            TOKEN.safeTransferFromPermit2(msg.sender, address(this), amount);
+            TOKEN.safeTransferFromPermit2(from, address(this), amount);
         } else {
-            TOKEN.safeTransferFrom(msg.sender, address(this), amount);
+            TOKEN.safeTransferFrom(from, address(this), amount);
         }
 
         emit Deposit(to, amount);
