@@ -7,37 +7,49 @@ import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 abstract contract PayoutSigVerifier is EIP712 {
     error InvalidNonce();
 
-    struct Payment {
+    struct Sig {
+        address signer;
         uint256 nonce;
-        address spender;
+        uint256 executionFee;
+    }
+
+    struct DepositSig {
+        Sig sig;
+        uint256 amount;
+    }
+
+    struct PaymentSig {
+        Sig sig;
         address receiver;
         uint256 amount;
-        uint256 executionFee;
         bytes32 id;
     }
 
-    struct Settings {
-        uint128 nonce;
-        uint96 subscriptionRate;
-        uint16 userFee;
-        uint16 protocolFee;
-        address user;
-    }
-
     struct SubSig {
-        uint256 nonce;
-        address user;
+        Sig sig;
         address author;
         uint256 maxRate;
         bytes32 id;
     }
 
     struct UnSubSig {
-        uint256 nonce;
-        address user;
+        Sig sig;
         address author;
         bytes32 id;
     }
+
+    struct Settings {
+        uint96 subscriptionRate;
+        uint16 userFee;
+        uint16 protocolFee;
+    }
+
+    struct SettingsSig {
+        Sig sig;
+        address user;
+        Settings settings;
+    }
+
 
     string private constant SIGNING_DOMAIN = "PayoutSigVerifier";
     string private constant SIGNATURE_VERSION = "1";
@@ -54,13 +66,23 @@ abstract contract PayoutSigVerifier is EIP712 {
         return block.chainid;
     }
 
-    function _hashPayment(Payment calldata payment) internal view returns (bytes32) {
+    function _hashPayment(PaymentSig calldata payment) internal view returns (bytes32) {
         return
             _hashTypedDataV4(
                 keccak256(
                     abi.encode(
                         keccak256(
-                            "Payment(uint256 nonce,address spender,address receiver,uint256 amount,uint256 executionFee,bytes32 id)"
+                            "PaymentSig("
+                                "Sig sig,"
+                                "address receiver,"
+                                "uint256 amount,"
+                                "bytes32 id"
+                            ")"
+                            "Sig("
+                                "address signer,"
+                                "uint256 nonce,"
+                                "uint265 executionFee"
+                            ")"
                         ),
                         payment
                     )
@@ -68,48 +90,127 @@ abstract contract PayoutSigVerifier is EIP712 {
             );
     }
 
-    function _hashSettings(Settings calldata settings) internal view returns (bytes32) {
+    function _hashSettings(SettingsSig calldata settingssig) internal view returns (bytes32) {
         return
             _hashTypedDataV4(
                 keccak256(
                     abi.encode(
-                        keccak256("Settings(uint128 nonce,uint96 subscriptionRate,uint16 userFee,uint16 protocolFee,address user)"),
-                        settings
+                        keccak256(
+                            "SettingsSig("
+                                "Sig sig,"
+                                "address user,"
+                                "Settings settings"
+                            ")"
+                            "Settings("
+                                "uint96 subscriptionRate,"
+                                "uint16 userFee,"
+                                "uint16 protocolFee,"
+                            ")"
+                            "Sig("
+                                "address signer,"
+                                "uint256 nonce,"
+                                "uint265 executionFee"
+                            ")"
+                        ),
+                        settingssig
                     )
                 )
             );
     }
 
-    function _hashSubscribe(SubSig calldata subsig) internal view returns (bytes32) {
+    function _hashSubscribe(SubSig calldata subscription) internal view returns (bytes32) {
         return
             _hashTypedDataV4(
                 keccak256(
-                    abi.encode(keccak256("SubSig(uint256 nonce,address user,address author,uint256 maxRate,bytes32 id)"), subsig)
+                    abi.encode(keccak256(
+                            "SubSig("
+                                "Sig sig,"
+                                "address author,"
+                                "uint256 maxRate,"
+                                "bytes32 id"
+                            ")"
+                            "Sig("
+                                "address signer,"
+                                "uint256 nonce,"
+                                "uint265 executionFee"
+                            ")"
+                        ), 
+                        subscription
+                    )
                 )
             );
     }
 
-    function _hashUnSubscribe(UnSubSig calldata unsubsig) internal view returns (bytes32) {
+    function _hashUnSubscribe(UnSubSig calldata unsubscription) internal view returns (bytes32) {
         return
             _hashTypedDataV4(
-                keccak256(abi.encode(keccak256("UnSubSig(uint256 nonce,address user,address author,bytes32 id)"), unsubsig))
+                keccak256(abi.encode(keccak256(
+                            "UnSubSig("
+                                "Sig sig,"
+                                "address author,"
+                                "bytes32 id"
+                            ")"
+                            "Sig("
+                                "address signer,"
+                                "uint256 nonce,"
+                                "uint265 executionFee"
+                            ")"
+                        ), 
+                        unsubscription
+                    )
+                )
             );
     }
 
-    function verifyPayment(Payment calldata payment, bytes memory rvs) internal returns (bool) {
-        return _verify(_hashPayment(payment), payment.spender, payment.spender, payment.nonce, rvs);
+    function _hashDeposit(DepositSig calldata depositSig) internal view returns (bytes32) {
+        return
+            _hashTypedDataV4(
+                keccak256(abi.encode(keccak256(
+                            "DepositSig("
+                                "Sig sig,"
+                                "uint256 amount"
+                            ")"
+                            "Sig("
+                                "address signer,"
+                                "uint256 nonce,"
+                                "uint265 executionFee"
+                            ")"
+                        ), 
+                        depositSig
+                    )
+                )
+            );
     }
 
-    function verifySettings(Settings calldata settings, bytes memory rvs) internal returns (bool) {
-        return _verify(_hashSettings(settings), protocolSigner, settings.user, settings.nonce, rvs);
+    function verifyPayment(PaymentSig calldata payment, bytes memory rvs) internal returns (bool) {
+        return _verify(_hashPayment(payment), payment.sig.signer, payment.sig.signer, payment.sig.nonce, rvs);
     }
 
-    function verifySubscribe(SubSig calldata subsig, bytes memory rvs) internal returns (bool) {
-        return _verify(_hashSubscribe(subsig), subsig.user, subsig.user, subsig.nonce, rvs);
+    function verifySettings(SettingsSig calldata settings, bytes memory rvs) internal returns (bool) {
+        return _verify(_hashSettings(settings), protocolSigner, settings.user, settings.sig.nonce, rvs);
     }
 
-    function verifyUnsubscribe(UnSubSig calldata unsubsig, bytes memory rvs) internal returns (bool) {
-        return _verify(_hashUnSubscribe(unsubsig), unsubsig.user, unsubsig.user, unsubsig.nonce, rvs);
+    function verifySubscribe(SubSig calldata subscription, bytes memory rvs) internal returns (bool) {
+        return _verify(
+            _hashSubscribe(subscription), 
+            subscription.sig.signer, 
+            subscription.sig.signer, 
+            subscription.sig.nonce, 
+            rvs
+        );
+    }
+
+    function verifyUnsubscribe(UnSubSig calldata unsubscription, bytes memory rvs) internal returns (bool) {
+        return _verify(
+            _hashUnSubscribe(unsubscription), 
+            unsubscription.sig.signer, 
+            unsubscription.sig.signer, 
+            unsubscription.sig.nonce, 
+            rvs);
+    }
+
+    function verifyDepositSig(DepositSig calldata deposit, bytes memory rvs) internal returns (bool) {
+        return _verify(_hashDeposit(deposit), deposit.sig.signer, deposit.sig.signer, deposit.sig.nonce, rvs);
     }
 
     function _verify(

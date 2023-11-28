@@ -172,31 +172,36 @@ contract Payout_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         token.safeTransfer(protocolWallet, amount);
     }
 
-    function updateSettings(Settings calldata settings, bytes memory rvs) external {
-        if (settings.protocolFee >= settings.userFee) revert WrongPercent();
-        if (settings.protocolFee + settings.userFee != UserLib.FLOOR) revert WrongPercent();
+    function updateSettings(SettingsSig calldata settings, bytes memory rvs) external {
+        if (settings.settings.protocolFee >= settings.settings.userFee) revert WrongPercent();
+        if (settings.settings.protocolFee + settings.settings.userFee != UserLib.FLOOR) revert WrongPercent();
         verifySettings(settings, rvs);
-        users[settings.user].setSettings(settings, users[protocolWallet]);
+        users[settings.user].setSettings(settings.settings, users[protocolWallet]);
 
-        emit UpdateSettings(settings.user, settings.userFee, settings.protocolFee);
+        emit UpdateSettings(settings.user, settings.settings.userFee, settings.settings.protocolFee);
     }
 
     function deposit(uint amount) external {
-        _deposit(msg.sender, amount, false);
+        _deposit(msg.sender, msg.sender, amount, false);
     }
 
     function depositFor(uint amount, address to) external {
-        _deposit(to, amount, false);
+        _deposit(msg.sender, to, amount, false);
     }
 
     function depositWithPermit(bytes calldata permitData, uint amount) external {
         TOKEN.tryPermit(permitData);
-        _deposit(msg.sender, amount, false);
+        _deposit(msg.sender, msg.sender, amount, _isPermit2(permitData.length));
     }
 
-    function depositWithPermit2(bytes calldata permitData, uint amount) external {
-        TOKEN.tryPermit(permitData);
-        _deposit(msg.sender, amount, true);
+    function depositBySig(
+        DepositSig calldata depositsig,
+        bytes calldata rvs,  
+        bytes calldata permitData
+    ) external {
+        verifyDepositSig(depositsig, rvs);
+        TOKEN.tryPermit(depositsig.sig.signer, address(this), permitData);
+        _deposit(depositsig.sig.signer, depositsig.sig.signer, depositsig.amount, _isPermit2(permitData.length));
     }
 
     function changeSubscriptionRate(uint96 subscriptionRate) external {
@@ -215,11 +220,11 @@ contract Payout_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         emit Subscribe(msg.sender, author, id);
     }
 
-    function subscribeBySig(SubSig calldata subsig, bytes memory rvs) external {
-        verifySubscribe(subsig, rvs);
-        _subscribeChecksAndEffects(subsig.user, subsig.author, subsig.maxRate);
+    function subscribeBySig(SubSig calldata subscribeSig, bytes memory rvs) external {
+        verifySubscribe(subscribeSig, rvs);
+        _subscribeChecksAndEffects(subscribeSig.sig.signer, subscribeSig.author, subscribeSig.maxRate);
 
-        emit Subscribe(subsig.user, subsig.author, subsig.id);
+        emit Subscribe(subscribeSig.sig.signer, subscribeSig.author, subscribeSig.id);
     }
 
     function unsubscribe(address author, bytes32 id) external {
@@ -229,29 +234,29 @@ contract Payout_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         emit Unsubscribe(msg.sender, author, id);
     }
 
-    function unsubscribeBySig(UnSubSig calldata unsubsig, bytes memory rvs) external {
-        verifyUnsubscribe(unsubsig, rvs);
+    function unsubscribeBySig(UnSubSig calldata unsubscribeSig, bytes memory rvs) external {
+        verifyUnsubscribe(unsubscribeSig, rvs);
 
-        uint actualRate = _unsubscribeChecks(unsubsig.user, unsubsig.author);
-        _unsubscribeEffects(unsubsig.user, unsubsig.author, uint96(actualRate));
+        uint actualRate = _unsubscribeChecks(unsubscribeSig.sig.signer, unsubscribeSig.author);
+        _unsubscribeEffects(unsubscribeSig.sig.signer, unsubscribeSig.author, uint96(actualRate));
 
-        emit Unsubscribe(unsubsig.user, unsubsig.author, unsubsig.id);
+        emit Unsubscribe(unsubscribeSig.sig.signer, unsubscribeSig.author, unsubscribeSig.id);
     }
 
-    function payBySig(Payment calldata payment, bytes memory rvs) external {
+    function payBySig(PaymentSig calldata payment, bytes memory rvs) external {
         verifyPayment(payment, rvs);
 
-        users[payment.spender].decreaseBalance(
-            payment.amount + payment.executionFee,
-            _liquidationThreshold(payment.spender),
+        users[payment.sig.signer].decreaseBalance(
+            payment.amount + payment.sig.executionFee,
+            _liquidationThreshold(payment.sig.signer),
             users[protocolWallet]
         );
         users[payment.receiver].increaseBalance(payment.amount);
-        users[msg.sender].increaseBalance(payment.executionFee);
+        users[msg.sender].increaseBalance(payment.sig.executionFee);
 
-        emit PayBySig(payment.spender, payment.receiver, msg.sender, payment.id, payment.amount);
-        emit Transfer(payment.spender, payment.receiver, payment.amount);
-        emit Transfer(payment.spender, msg.sender, payment.executionFee);
+        emit PayBySig(payment.sig.signer, payment.receiver, msg.sender, payment.id, payment.amount);
+        emit Transfer(payment.sig.signer, payment.receiver, payment.amount);
+        emit Transfer(payment.sig.signer, msg.sender, payment.sig.executionFee);
     }
 
     function withdraw(uint256 amount) external {
@@ -278,14 +283,18 @@ contract Payout_mock is IPayoutV2R, PayoutSigVerifier, Ownable {
         emit Liquidate(account, msg.sender);
     }
 
-    function _deposit(address to, uint amount, bool usePermit2) private {
+    function _isPermit2(uint256 length) private pure returns (bool) {
+        return length == 96 || length == 352;
+    }
+
+    function _deposit(address from, address to, uint amount, bool usePermit2) private {
         users[to].increaseBalance(amount);
         totalBalance += amount;
 
         if(usePermit2) {
-            TOKEN.safeTransferFromPermit2(msg.sender, address(this), amount);
+            TOKEN.safeTransferFromPermit2(from, address(this), amount);
         } else {
-            TOKEN.safeTransferFrom(msg.sender, address(this), amount);
+            TOKEN.safeTransferFrom(from, address(this), amount);
         }
 
         emit Deposit(to, amount);
