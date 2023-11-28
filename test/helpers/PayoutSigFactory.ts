@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import {BigNumber, BigNumberish, Contract, Signer, Wallet} from 'ethers';
+import { ethers } from "ethers"
 
 const SIGNING_DOMAIN_NAME = 'PayoutSigVerifier';
 const SIGNING_DOMAIN_VERSION = '1';
