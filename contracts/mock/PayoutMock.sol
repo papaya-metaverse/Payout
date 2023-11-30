@@ -2,7 +2,6 @@
 pragma solidity 0.8.19;
 
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20} from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
@@ -33,6 +32,20 @@ contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
     address public protocolWallet;
     uint256 public totalBalance;
 
+    modifier transferExecutionFee(
+        UserLib.User storage spender,
+        address spenderAddr, 
+        UserLib.User storage receiver, 
+        uint256 executionFee
+    ) {
+        spender.decreaseBalance(
+            executionFee,
+            _liquidationThreshold(spenderAddr),
+            users[protocolWallet]);
+        receiver.increaseBalance(executionFee);
+        _;
+    }
+
     constructor(
         address protocolSigner_,
         address protocolWallet_,
@@ -60,7 +73,15 @@ contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
         token.safeTransfer(protocolWallet, amount);
     }
 
-    function updateSettings(SettingsSig calldata settings, bytes memory rvs) external {
+    function updateSettings(
+        SettingsSig calldata settings, 
+        bytes memory rvs
+    ) external transferExecutionFee(
+        users[settings.user], 
+        settings.user, 
+        users[msg.sender], 
+        settings.sig.executionFee
+    ) {
         if (settings.settings.protocolFee >= settings.settings.userFee) revert WrongPercent();
         if (settings.settings.protocolFee + settings.settings.userFee != UserLib.FLOOR) revert WrongPercent();
         verifySettings(settings, rvs);
@@ -86,7 +107,12 @@ contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
         DepositSig calldata depositsig,
         bytes calldata rvs,  
         bytes calldata permitData
-    ) external {
+    ) external transferExecutionFee(
+        users[depositsig.sig.signer], 
+        depositsig.sig.signer, 
+        users[msg.sender], 
+        depositsig.sig.executionFee
+    ) {
         verifyDepositSig(depositsig, rvs);
         TOKEN.tryPermit(depositsig.sig.signer, address(this), permitData);
         _deposit(depositsig.sig.signer, depositsig.sig.signer, depositsig.amount, _isPermit2(permitData.length));
@@ -108,7 +134,15 @@ contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
         emit Subscribe(msg.sender, author, id);
     }
 
-    function subscribeBySig(SubSig calldata subscribeSig, bytes memory rvs) external {
+    function subscribeBySig(
+        SubSig calldata subscribeSig, 
+        bytes memory rvs
+    ) external transferExecutionFee(
+        users[subscribeSig.sig.signer], 
+        subscribeSig.sig.signer, 
+        users[msg.sender], 
+        subscribeSig.sig.executionFee
+    ) {
         verifySubscribe(subscribeSig, rvs);
         _subscribeChecksAndEffects(subscribeSig.sig.signer, subscribeSig.author, subscribeSig.maxRate);
 
@@ -122,7 +156,15 @@ contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
         emit Unsubscribe(msg.sender, author, id);
     }
 
-    function unsubscribeBySig(UnSubSig calldata unsubscribeSig, bytes memory rvs) external {
+    function unsubscribeBySig(
+        UnSubSig calldata unsubscribeSig, 
+        bytes memory rvs
+    ) external transferExecutionFee(
+        users[unsubscribeSig.sig.signer], 
+        unsubscribeSig.sig.signer, 
+        users[msg.sender], 
+        unsubscribeSig.sig.executionFee
+    ) {
         verifyUnsubscribe(unsubscribeSig, rvs);
 
         uint actualRate = _unsubscribeChecks(unsubscribeSig.sig.signer, unsubscribeSig.author);
@@ -131,7 +173,15 @@ contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
         emit Unsubscribe(unsubscribeSig.sig.signer, unsubscribeSig.author, unsubscribeSig.id);
     }
 
-    function payBySig(PaymentSig calldata payment, bytes memory rvs) external {
+    function payBySig(
+        PaymentSig calldata payment, 
+        bytes memory rvs
+    ) external transferExecutionFee(
+        users[payment.sig.signer], 
+        payment.sig.signer, 
+        users[msg.sender], 
+        payment.sig.executionFee
+    ) {
         verifyPayment(payment, rvs);
 
         users[payment.sig.signer].decreaseBalance(

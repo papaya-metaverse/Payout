@@ -2,7 +2,7 @@ import { HardhatUserConfig, task } from "hardhat/config";
 import "@nomicfoundation/hardhat-chai-matchers";
 import "@nomiclabs/hardhat-etherscan";
 import "hardhat-dependency-compiler";
-import "@nomiclabs/hardhat-ethers";
+import "@nomicfoundation/hardhat-ethers";
 import "hardhat-contract-sizer";
 import "hardhat-storage-layout";
 import "hardhat-gas-reporter";

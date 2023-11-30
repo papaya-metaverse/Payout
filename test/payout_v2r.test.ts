@@ -1,135 +1,44 @@
 import hre from 'hardhat'
 import { ethers } from 'hardhat';
-import { BigNumber, Signer } from 'ethers';
+import { Signer } from 'ethers';
 import { expect, deployContract, ether } from '@1inch/solidity-utils'
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { SignatureFactory } from './helpers/PayoutSigFactory'
-import { networkConfig } from "../helper-hardhat-config"
-import { time } from "@nomicfoundation/hardhat-network-helpers"
-import { HardhatEthersHelpers } from '@nomiclabs/hardhat-ethers/types';
+import { deployContracts } from '../test/helpers/Fixture.ts'
+import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers"
 
 describe("PayoutMock", function() {
     const { ethers, network } = hre 
-    const ZERO_ADDRESS = ethers.constants.AddressZero
+    
+    const ZERO_ADDRESS = ethers.ZeroAddress
     
     const DAY = 86400
     const FIVE_USDT = 5000000
     const SIX_USDT = 6000000
     const ELEVEN_USDT = FIVE_USDT + SIX_USDT
-    const USDT_DECIMALS = 6
     const SUB_RATE = 58
     
-    const USER_FEE = BigNumber.from(8000)
-    const PROTOCOL_FEE = BigNumber.from(2000)
+    const USER_FEE = BigInt("8000")
+    const PROTOCOL_FEE = BigInt("2000")
 
     const OWNER = 0
     const SERVICE_WALLET = 1
     const SIGNER = 1
     const CREATOR = 3
-    const REFERRER = 4
+    const USER2 = 4
     const USER = 5
 
-    const id = ethers.utils.formatBytes32String("0");
+    const id = ethers.encodeBytes32String("0");
 
-    let owner
-    let signer
-    let user
-    let creator
-    let referrer
-    let protocolWallet
-
-    let token: AYA
-    let payout: PayoutMock
-    let nativePriceFeed: PriceFeed
-    let tokenPriceFeed: PriceFeed
-
-    async function deployToken() {
-        const name = networkConfig[network.name].aya.name
-        const symbol = networkConfig[network.name].aya.symbol 
-        const totalSupply = ethers.
-        utils.parseEther(networkConfig[network.name].aya.totalSupply.toString())
-        const admin = networkConfig[network.name].aya.admin
-
-        const args: any[] = [
-            name == undefined ? "PAPAYA Family Token" : name, 
-            symbol == undefined ? "AYA" : symbol, 
-            totalSupply, 
-            admin
-        ]
-
-        let contract = await ethers.deployContract("AYA", args)
-
-        return contract
-    }
-
-    async function deployNativePriceFeed() {
-        let contract = await ethers.deployContract("NativePriceFeed")
-
-        return contract
-    }
-
-    async function deployTokenPriceFeed() {
-        let contract = await ethers.deployContract("TokenPriceFeed")
-
-        return contract
-    }
-
-    async function deployPayoutV2R(
-        tokenAddress: string, 
-        nativePriceFeedAddress: string,
-        tokenPriceFeedAddress: string
-    ) {
-        const protocolSigner = networkConfig[network.name].payoutV2R.protocolSigner
-        const protocolWalletAddr = networkConfig[network.name].payoutV2R.serviceWallet
-        const args = [
-            protocolSigner,
-            protocolWalletAddr, 
-            nativePriceFeedAddress,
-            tokenPriceFeedAddress,
-            tokenAddress,
-            USDT_DECIMALS
-        ]
-
-        let contract = await ethers.deployContract("PayoutMock", args)
-
-        return contract
-    }
-
-    async function baseSetup() {
-        owner = (await ethers.getSigners())[OWNER]
-        user = (await ethers.getSigners())[USER]
-
-        protocolWallet = (await ethers.getSigners())[SERVICE_WALLET]
-        signer = (await ethers.getSigners())[SIGNER]
-
-        creator = (await ethers.getSigners())[CREATOR]
-        referrer = (await ethers.getSigners())[REFERRER]
-
-        token = await deployToken()
-        await token.deployed()
-        
-        nativePriceFeed = await deployNativePriceFeed()
-        await nativePriceFeed.deployed()
-
-        tokenPriceFeed = await deployTokenPriceFeed()
-        await tokenPriceFeed.deployed()
-
-        payout = await deployPayoutV2R(token.address, nativePriceFeed.address, tokenPriceFeed.address)
-        await payout.deployed()
-    }
-
-    const advanceTime = async (time: number) => {
-        await hre.ethers.provider.send('evm_increaseTime', [time]);
-    }
+    let owner, signer, user, creator, user2, protocolWallet
 
     //NOTE Signer MUST be a USER
     //NOTE Transaction can be provided by anyone
     async function signPayment(
-        signer: SignerWithAddress,
+        signer: Signer,
         user: string,
         creator: string,
-        amount: BigNumber,
-        executionFee: BigNumber,
+        amount: BigInt,
+        executionFee: BigInt,
         id: string
     ) {
         const payment = new SignatureFactory({
@@ -149,12 +58,12 @@ describe("PayoutMock", function() {
     // NOTE Signer MUST be EOA that controlled by protocol
     // NOTE But transaction MUST be provided by user
     async function signSettings(
-        signer: SignerWithAddress,
+        signer: Signer,
         user: string,
-        subscriptionRate: BigNumber,
-        userFee: BigNumber,
-        protocolFee: BigNumber,
-        executionFee: BigNumber
+        subscriptionRate: BigInt,
+        userFee: BigInt,
+        protocolFee: BigInt,
+        executionFee: BigInt
     ) {
         const signin = new SignatureFactory({
             contract: payout,
@@ -171,15 +80,24 @@ describe("PayoutMock", function() {
         return signedSignature
     }
 
+    before(async function() {
+        owner = (await ethers.getSigners())[OWNER]
+        signer = (await ethers.getSigners())[SIGNER]
+        user = (await ethers.getSigners())[USER]
+        creator = (await ethers.getSigners())[CREATOR]
+        user2 = (await ethers.getSigners())[USER2]
+        protocolWallet = (await ethers.getSigners())[SERVICE_WALLET]
+    });
+
     describe("Method: updateprotocolWallet", function () {
         it("Negative", async() => {
-            await baseSetup()
-
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
+            // console.log(await deployContracts(signer.address, protocolWallet.address))
             await expect(payout.connect(user).updateProtocolWallet(ZERO_ADDRESS)).to.be.revertedWith("Ownable: caller is not the owner")
         })
 
         it("Positive", async() => {
-            await baseSetup()
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
 
             await payout.updateProtocolWallet(ZERO_ADDRESS)
 
@@ -189,19 +107,21 @@ describe("PayoutMock", function() {
 
     describe("Method: updateSettings", function () {
         it("Positive", async () => {
-            await baseSetup()
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
 
-            let signed_settings = await signSettings(signer, referrer.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
+            let signed_settings = await signSettings(signer, user2.address, BigInt("SUB_RATE"), USER_FEE, PROTOCOL_FEE, BigInt("0"))
 
-            await payout.connect(referrer).updateSettings(signed_settings, signed_settings.signature)
+            await payout.connect(user2).updateSettings(signed_settings, signed_settings.signature)
 
-            expect((await payout.users(referrer.address)).settings.subscriptionRate).to.be.eq(SUB_RATE)
-            expect((await payout.users(referrer.address)).settings.userFee).to.be.eq(USER_FEE)
-            expect((await payout.users(referrer.address)).settings.protocolFee).to.be.eq(PROTOCOL_FEE)
+            expect((await payout.users(user2.address)).settings.subscriptionRate).to.be.eq(SUB_RATE)
+            expect((await payout.users(user2.address)).settings.userFee).to.be.eq(USER_FEE)
+            expect((await payout.users(user2.address)).settings.protocolFee).to.be.eq(PROTOCOL_FEE)
         })
 
         it("Negative", async () => {
-            let signed_settings = await signSettings(signer, user.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE.add(100), BigNumber.from(0))
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
+
+            let signed_settings = await signSettings(signer, user.address, BigInt("SUB_RATE"), USER_FEE, PROTOCOL_FEE + BigInt("100"), BigInt("0"))
 
             await expect(payout.connect(user).updateSettings(signed_settings, signed_settings.signature)).to.be.revertedWithCustomError(payout, "WrongPercent")
         })
@@ -209,7 +129,7 @@ describe("PayoutMock", function() {
 
     describe("Method: deposit", function () {
         it("Positive", async() => {
-            await baseSetup()
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
 
             await token.transfer(user.address, SIX_USDT)
             await token.connect(user).approve(payout.address, SIX_USDT)
@@ -222,32 +142,32 @@ describe("PayoutMock", function() {
 
     describe("Method: changeSubscribeRate", function () {
         it("Positive", async() => {
-            await baseSetup()
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
 
-            let signed_settings = await signSettings(signer, user.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
+            let signed_settings = await signSettings(signer, user.address, BigInt("SUB_RATE"), USER_FEE, PROTOCOL_FEE, BigInt("0"))
 
             await payout.connect(user).updateSettings(signed_settings, signed_settings.signature)
             
-            expect((await payout.users(user.address)).settings.subscriptionRate).to.be.eq(BigNumber.from(SUB_RATE))
+            expect((await payout.users(user.address)).settings.subscriptionRate).to.be.eq(BigInt("SUB_RATE"))
 
             await payout.connect(user).changeSubscriptionRate(0)
 
-            expect((await payout.users(user.address)).settings.subscriptionRate).to.be.eq(BigNumber.from(0))
+            expect((await payout.users(user.address)).settings.subscriptionRate).to.be.eq(BigInt("0"))
         })
     })
 
     describe("Method: subscribe", function() {
         it("Positive", async() => {
-            await baseSetup()
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
 
-            let signed_settings = await signSettings(signer, user.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
+            let signed_settings = await signSettings(signer, user.address, BigInt("SUB_RATE"), USER_FEE, PROTOCOL_FEE, BigInt("0"))
             await payout.connect(user).updateSettings(signed_settings, signed_settings.signature)
 
-            signed_settings = await signSettings(signer, creator.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
+            signed_settings = await signSettings(signer, creator.address, BigInt("SUB_RATE"), USER_FEE, PROTOCOL_FEE, BigInt("0"))
             await payout.connect(creator).updateSettings(signed_settings, signed_settings.signature)
 
-            signed_settings = await signSettings(signer, referrer.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
-            await payout.connect(referrer).updateSettings(signed_settings, signed_settings.signature)
+            signed_settings = await signSettings(signer, user2.address, BigInt("SUB_RATE"), USER_FEE, PROTOCOL_FEE, BigInt("0"))
+            await payout.connect(user2).updateSettings(signed_settings, signed_settings.signature)
 
             await expect(payout.connect(user).subscribe(creator.address, SUB_RATE, id)).to.be.revertedWithCustomError(payout, "TopUpBalance")
 
@@ -279,22 +199,24 @@ describe("PayoutMock", function() {
 
             // await time.increase(2 * DAY)
 
-            await expect(payout.connect(user).subscribe(referrer.address, SUB_RATE, id)).to.be.revertedWithCustomError(payout, "TopUpBalance")    
+            await expect(payout.connect(user).subscribe(user2.address, SUB_RATE, id)).to.be.revertedWithCustomError(payout, "TopUpBalance")    
         })
     })
 
     describe("Method: unsubscribe", function() {
         it("Negative", async() => {
-            await baseSetup()
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
 
             await expect(payout.connect(user).unsubscribe(creator.address, id)).to.be.revertedWithCustomError(payout, "NotSubscribed")
 
-            let signed_settings = await signSettings(signer, user.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
+            let signed_settings = await signSettings(signer, user.address, BigInt("SUB_RATE"), USER_FEE, PROTOCOL_FEE, BigInt("0"))
             await payout.connect(user).updateSettings(signed_settings, signed_settings.signature)
         })
 
         it("Positive", async() => {
-            let signed_settings = await signSettings(signer, creator.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
+
+            let signed_settings = await signSettings(signer, creator.address, BigInt("SUB_RATE"), USER_FEE, PROTOCOL_FEE, BigInt("0"))
             await payout.connect(creator).updateSettings(signed_settings, signed_settings.signature)
 
             await expect(payout.connect(user).unsubscribe(creator.address, id)).to.be.revertedWithCustomError(payout, "NotSubscribed")
@@ -305,7 +227,7 @@ describe("PayoutMock", function() {
 
             await payout.connect(user).subscribe(creator.address, SUB_RATE, id)
 
-            await advanceTime(86400)
+            await time.increase(86400)
 
             await payout.connect(user).unsubscribe(creator.address, id)
 
@@ -317,38 +239,42 @@ describe("PayoutMock", function() {
 
     describe("Method: payWithSig", function() {
         it("Negative", async() => {
-            await baseSetup()
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
 
-            let payment = await signPayment(user, user.address, creator.address, BigNumber.from(SIX_USDT), BigNumber.from(0), id)
+            let payment = await signPayment(user, user.address, creator.address, BigInt("SIX_USDT"), BigInt("0"), id)
             
             await expect(payout.connect(user).payBySig(payment, payment.signature)).to.be.revertedWithCustomError(payout, "InsufficialBalance")
         })
 
         it("Positive", async() => {
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
+
             await token.transfer(user.address, SIX_USDT)
             await token.connect(user).approve(payout.address, SIX_USDT)
             await payout.connect(user).deposit(SIX_USDT)
 
-            let payment = await signPayment(user, user.address, creator.address, BigNumber.from(FIVE_USDT), BigNumber.from(0), id)
+            let payment = await signPayment(user, user.address, creator.address, BigInt("FIVE_USDT"), BigInt("0"), id)
 
             await payout.connect(user).payBySig(payment, payment.signature)
 
             expect(await payout.balanceOf(user.address)).to.be.eq(SIX_USDT - FIVE_USDT)
-            expect(await payout.balanceOf(creator.address)).to.be.eq(BigNumber.from(FIVE_USDT))
+            expect(await payout.balanceOf(creator.address)).to.be.eq(BigInt("FIVE_USDT"))
         })
     })
 
     describe("Method: withdraw", function() {
         it("Negative", async() => {
-            await baseSetup()
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
 
-            let signed_settings = await signSettings(signer, user.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
+            let signed_settings = await signSettings(signer, user.address, BigInt("SUB_RATE"), USER_FEE, PROTOCOL_FEE, BigInt("0"))
             await payout.connect(user).updateSettings(signed_settings, signed_settings.signature)
 
             await expect(payout.connect(user).withdraw(FIVE_USDT)).to.be.revertedWithCustomError(payout, "InsufficialBalance")
         })
 
         it("Positive", async() => {
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
+
             await token.transfer(user.address, SIX_USDT)
             await token.connect(user).approve(payout.address, SIX_USDT)
             await payout.connect(user).deposit(SIX_USDT)
@@ -361,20 +287,20 @@ describe("PayoutMock", function() {
 
     describe("Method: liquidate", function() {
         it("Negative", async() => {
-            await baseSetup()
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
             
             await expect(payout.connect(creator).liquidate(user.address)).to.be.revertedWithCustomError(payout, "NotLiquidatable")
             
-            let signed_settings = await signSettings(signer, user.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
+            let signed_settings = await signSettings(signer, user.address, BigInt("SUB_RATE"), USER_FEE, PROTOCOL_FEE, BigInt("0"))
             await payout.connect(user).updateSettings(signed_settings, signed_settings.signature)
             
             await expect(payout.connect(creator).liquidate(user.address)).to.be.revertedWithCustomError(payout, "NotLiquidatable")
             
-            signed_settings = await signSettings(signer, creator.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
+            signed_settings = await signSettings(signer, creator.address, BigInt("SUB_RATE"), USER_FEE, PROTOCOL_FEE, BigInt("0"))
             await payout.connect(creator).updateSettings(signed_settings, signed_settings.signature)
         
-            signed_settings = await signSettings(signer, referrer.address, BigNumber.from(SUB_RATE), USER_FEE, PROTOCOL_FEE, BigNumber.from(0))
-            await payout.connect(referrer).updateSettings(signed_settings, signed_settings.signature)
+            signed_settings = await signSettings(signer, user2.address, BigInt("SUB_RATE"), USER_FEE, PROTOCOL_FEE, BigInt("0"))
+            await payout.connect(user2).updateSettings(signed_settings, signed_settings.signature)
         
             await token.transfer(user.address, ELEVEN_USDT)
             await token.connect(user).approve(payout.address, ELEVEN_USDT)
@@ -386,9 +312,11 @@ describe("PayoutMock", function() {
         })
 
         it("Positive", async() => {
+            const {token, coinPriceFeed, tokenPriceFeed, payout} = await deployContracts(signer.address, protocolWallet.address)
+
             await time.increase(2 * DAY) 
 
-            await payout.connect(referrer).liquidate(user.address)
+            await payout.connect(user2).liquidate(user.address)
         })
     })
 })
