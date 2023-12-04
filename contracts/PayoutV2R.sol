@@ -57,8 +57,8 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier {
         COIN_PRICE_FEED = AggregatorV3Interface(CHAIN_PRICE_FEED_);
         TOKEN_PRICE_FEED = AggregatorV3Interface(TOKEN_PRICE_FEED_);
         TOKEN = IERC20(TOKEN_);
-        protocolWallet = protocolWallet_;
         TOKEN_DECIMALS = TOKEN_DECIMALS_;
+        protocolWallet = protocolWallet_;
     }
 
     function updateProtocolWallet(address protocolWallet_) external onlyOwner {
@@ -190,7 +190,6 @@ contract PayoutV2R is IPayoutV2R, PayoutSigVerifier {
             users[protocolWallet]
         );
         users[payment.receiver].increaseBalance(payment.amount);
-        users[msg.sender].increaseBalance(payment.sig.executionFee);
 
         emit PayBySig(payment.sig.signer, payment.receiver, msg.sender, payment.id, payment.amount);
         emit Transfer(payment.sig.signer, payment.receiver, payment.amount);
