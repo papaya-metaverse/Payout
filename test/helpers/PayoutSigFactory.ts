@@ -1,30 +1,35 @@
-import {Contract, Signer, Wallet} from 'ethers';
-import { ethers } from "ethers"
+// import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
+// import { Contract } from "@nomiclabs/hardhat-ethers";
+// import { ethers } from 'hardhat';
+// import { BigNumber, Signer } from "ethers";
+
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { BigNumber, Contract } from 'ethers';
 
 const SIGNING_DOMAIN_NAME = 'PayoutSigVerifier';
 const SIGNING_DOMAIN_VERSION = '1';
 
 export class SignatureFactory {
   contract: Contract;
-  signer: Signer;
+  signer: SignerWithAddress;
   _domain: any;
 
-  constructor({contract, signer}: {contract: Contract; signer: Signer}) {
+  constructor({contract, signer}: {contract: Contract; signer: SignerWithAddress}) {
     this.contract = contract;
     this.signer = signer;
   }
 
   async createSettings(
     user: string,
-    subscriptionRate: BigInt,
-    userFee: BigInt,
-    protocolFee: BigInt,
-    executionFee: BigInt
+    subscriptionRate: BigNumber,
+    userFee: BigNumber,
+    protocolFee: BigNumber,
+    executionFee: BigNumber
   ) {
     const nonce = await this.contract.nonces(user);
     const domain = await this._signingDomain();
-    const spenderAddr = this.signer.getAddress()
-    const data = {spenderAddr, nonce, executionFee, user, subscriptionRate, userFee, protocolFee}
+    const protocolSigner = this.signer.getAddress()
+    const data = {protocolSigner, nonce, executionFee, user, subscriptionRate, userFee, protocolFee}
     const types = {
       SettingsSig: [
         {name: 'sig', type: 'Sig'},
@@ -42,7 +47,8 @@ export class SignatureFactory {
         {name: 'protocolFee', type: 'uint16'}
       ]
     }
-    const signature = await this.signer.signTypedData(domain, types, data);
+
+    const signature = await this.signer._signTypedData(domain, types, data);
     return {
       ...data,
       signature,
@@ -52,13 +58,13 @@ export class SignatureFactory {
   async createPayment(
     spender: string,
     receiver: string,
-    amount: BigInt,
-    executionFee: BigInt,
+    amount: BigNumber,
+    executionFee: BigNumber,
     id: string
   ) {
     const nonce = await this.contract.nonces(spender);
     const domain = await this._signingDomain();
-    const data = {spender, nonce, executionFee, receiver, amount, id};
+    const data = {spender, nonce, executionFee, receiver, amount, id}
     const types = {
       PaymentSig: [
         {name: 'sig', type: 'Sig'},
@@ -72,7 +78,7 @@ export class SignatureFactory {
         {name: 'executionFee', type: 'uint256'}
       ]
     }
-    const signature = await this.signer.signTypedData(domain, types, data);
+    const signature = await this.signer._signTypedData(domain, types, data);
     return {
       ...data,
       signature,
@@ -92,5 +98,4 @@ export class SignatureFactory {
     };
     return this._domain;
   }
-
 }

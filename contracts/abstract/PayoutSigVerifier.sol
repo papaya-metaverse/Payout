@@ -85,7 +85,7 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
                             "Sig("
                                 "address signer,"
                                 "uint256 nonce,"
-                                "uint265 executionFee"
+                                "uint256 executionFee"
                             ")"
                         ),
                         payment
@@ -108,7 +108,7 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
                             "Sig("
                                 "address signer,"
                                 "uint256 nonce,"
-                                "uint265 executionFee"
+                                "uint256 executionFee"
                             ")"
                             "Settings("
                                 "uint96 subscriptionRate,"
@@ -136,7 +136,7 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
                             "Sig("
                                 "address signer,"
                                 "uint256 nonce,"
-                                "uint265 executionFee"
+                                "uint256 executionFee"
                             ")"
                         ), 
                         subscription
@@ -157,7 +157,7 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
                             "Sig("
                                 "address signer,"
                                 "uint256 nonce,"
-                                "uint265 executionFee"
+                                "uint256 executionFee"
                             ")"
                         ), 
                         unsubscription
@@ -177,7 +177,7 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
                             "Sig("
                                 "address signer,"
                                 "uint256 nonce,"
-                                "uint265 executionFee"
+                                "uint256 executionFee"
                             ")"
                         ), 
                         depositSig

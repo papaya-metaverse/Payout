@@ -2,7 +2,7 @@ import { HardhatUserConfig, task } from "hardhat/config";
 import "@nomicfoundation/hardhat-chai-matchers";
 import "@nomiclabs/hardhat-etherscan";
 import "hardhat-dependency-compiler";
-import "@nomicfoundation/hardhat-ethers";
+import "@nomiclabs/hardhat-ethers";
 import "hardhat-contract-sizer";
 import "hardhat-storage-layout";
 import "hardhat-gas-reporter";
@@ -23,28 +23,6 @@ export const getEnv = env => {
   }
   return value;
 };
-
-
-task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
-  const accounts = await hre.ethers.getSigners();
-
-  for (const account of accounts) {
-    console.log(account.address);
-  }
-});
-task("doc", "Update .md").setAction(async () => {
-  await exec("npm run docify", (error: any, stdout: any, stderr: any) => {
-    if (error) {
-      console.log(`error: ${error.message}`);
-      return;
-    }
-    if (stderr) {
-      console.log(`stderr: ${stderr}`);
-      return;
-    }
-    console.log(`stdout: ${stdout}`);
-  });
-});
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -86,61 +64,12 @@ const config: HardhatUserConfig = {
       chainId: 31337,
       blockGasLimit: 30000000,
       gasPrice: 70_000_000_000,
-      accounts: [
-        {
-          privateKey: getEnv('TEST_PRIVATEKEY'),
-          balance: "100000000000000000000000"
-        },
-        {
-          privateKey: getEnv('TEST_PRIVATEKEY2'),
-          balance: "100000000000000000000000"
-        },
-        {
-          privateKey: getEnv('TEST_PRIVATEKEY3'),
-          balance: "100000000000000000000000"
-        },
-        {
-          privateKey: getEnv('TEST_PRIVATEKEY4'),
-          balance: "100000000000000000000000"
-        },
-        {
-          privateKey: getEnv('TEST_PRIVATEKEY5'),
-          balance: "100000000000000000000000"
-        },
-        {
-          privateKey: getEnv('TEST_PRIVATEKEY6'),
-          balance: "100000000000000000000000"
-        },
-      ],
       mining:{
         auto: true,
         interval: 5000
       }
     }
   },
-  namedAccounts: {
-    deployer: {
-      default: 0,
-    },
-    serviceWallet: {
-      default: 1,
-    },
-    signer: {
-      default: 1,
-    },
-    wrongSigner: {
-      default: 2,
-    },
-    creator: {
-      default: 3,
-    },
-    refferer: {
-      default: 4,
-    },
-    user_1: {
-      default: 5,
-    },
-},
   watcher: {
     dev: {
       tasks: ["test"],
