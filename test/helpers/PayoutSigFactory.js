@@ -1,30 +1,25 @@
-// import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
-// import { Contract } from "@nomiclabs/hardhat-ethers";
-// import { ethers } from 'hardhat';
-// import { BigNumber, Signer } from "ethers";
-
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { BigNumber, Contract } from 'ethers';
+const { SignerWithAddress } = require('@nomiclabs/hardhat-ethers/signers');
+const { BigNumber, Contract } = require('ethers');
 
 const SIGNING_DOMAIN_NAME = 'PayoutSigVerifier';
 const SIGNING_DOMAIN_VERSION = '1';
 
-export class SignatureFactory {
-  contract: Contract;
-  signer: SignerWithAddress;
-  _domain: any;
+class SignatureFactory {
+  contract;
+  signer;
+  _domain;
 
-  constructor({contract, signer}: {contract: Contract; signer: SignerWithAddress}) {
+  constructor({contract, signer}) {
     this.contract = contract;
     this.signer = signer;
   }
 
   async createSettings(
-    user: string,
-    subscriptionRate: BigNumber,
-    userFee: BigNumber,
-    protocolFee: BigNumber,
-    executionFee: BigNumber
+    user,
+    subscriptionRate,
+    userFee,
+    protocolFee,
+    executionFee
   ) {
     const nonce = await this.contract.nonces(user);
     const domain = await this._signingDomain();
@@ -36,15 +31,15 @@ export class SignatureFactory {
         {name: 'user', type: 'address'},
         {name: 'settings', type: 'Settings'}
       ],
-      Sig: [
-        {name: 'signer', type: 'address'},
-        {name: 'nonce', type: 'uint256'},
-        {name: 'executionFee', type: 'uint256'}
-      ],
       Settings: [
         {name: 'subscriptionRate', type: 'uint96'},
         {name: 'userFee', type: 'uint16'},
         {name: 'protocolFee', type: 'uint16'}
+      ],
+      Sig: [
+        {name: 'signer', type: 'address'},
+        {name: 'nonce', type: 'uint256'},
+        {name: 'executionFee', type: 'uint256'}
       ]
     }
 
@@ -56,11 +51,11 @@ export class SignatureFactory {
   }
 
   async createPayment(
-    spender: string,
-    receiver: string,
-    amount: BigNumber,
-    executionFee: BigNumber,
-    id: string
+    spender,
+    receiver,
+    amount,
+    executionFee,
+    id
   ) {
     const nonce = await this.contract.nonces(spender);
     const domain = await this._signingDomain();
@@ -98,4 +93,8 @@ export class SignatureFactory {
     };
     return this._domain;
   }
+}
+
+module.exports = {
+  SignatureFactory
 }

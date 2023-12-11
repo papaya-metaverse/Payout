@@ -6,11 +6,11 @@ import {SafeERC20} from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
-import "../interfaces/IPayoutV2R.sol";
+import "../interfaces/IPayout.sol";
 import "../abstract/PayoutSigVerifier.sol";
 import "../library/UserLib.sol";
 
-contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
+contract PayoutMock is IPayout, PayoutSigVerifier {
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -33,16 +33,18 @@ contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
     uint256 public totalBalance;
 
     modifier transferExecutionFee(
-        UserLib.User storage spender,
-        address spenderAddr, 
-        UserLib.User storage receiver, 
+        address spender, 
+        address receiver,
         uint256 executionFee
     ) {
-        spender.decreaseBalance(
+        users[spender].decreaseBalance(
+            users[protocolWallet],
             executionFee,
-            _liquidationThreshold(spenderAddr),
-            users[protocolWallet]);
-        receiver.increaseBalance(executionFee);
+            _liquidationThreshold(spender)
+        );
+        users[receiver].increaseBalance(executionFee);
+
+        emit Transfer(spender, receiver, executionFee);
         _;
     }
 
@@ -57,8 +59,8 @@ contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
         COIN_PRICE_FEED = AggregatorV3Interface(CHAIN_PRICE_FEED_);
         TOKEN_PRICE_FEED = AggregatorV3Interface(TOKEN_PRICE_FEED_);
         TOKEN = IERC20(TOKEN_);
-        protocolWallet = protocolWallet_;
         TOKEN_DECIMALS = TOKEN_DECIMALS_;
+        protocolWallet = protocolWallet_;
     }
 
     function updateProtocolWallet(address protocolWallet_) external onlyOwner {
@@ -76,12 +78,7 @@ contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
     function updateSettings(
         SettingsSig calldata settings, 
         bytes memory rvs
-    ) external transferExecutionFee(
-        users[settings.user], 
-        settings.user, 
-        users[msg.sender], 
-        settings.sig.executionFee
-    ) {
+    ) external {
         if (settings.settings.protocolFee >= settings.settings.userFee) revert WrongPercent();
         if (settings.settings.protocolFee + settings.settings.userFee != UserLib.FLOOR) revert WrongPercent();
         verifySettings(settings, rvs);
@@ -108,9 +105,8 @@ contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
         bytes calldata rvs,  
         bytes calldata permitData
     ) external transferExecutionFee(
-        users[depositsig.sig.signer], 
         depositsig.sig.signer, 
-        users[msg.sender], 
+        msg.sender,
         depositsig.sig.executionFee
     ) {
         verifyDepositSig(depositsig, rvs);
@@ -137,10 +133,9 @@ contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
     function subscribeBySig(
         SubSig calldata subscribeSig, 
         bytes memory rvs
-    ) external transferExecutionFee(
-        users[subscribeSig.sig.signer], 
-        subscribeSig.sig.signer, 
-        users[msg.sender], 
+    ) external transferExecutionFee( 
+        subscribeSig.sig.signer,
+        msg.sender, 
         subscribeSig.sig.executionFee
     ) {
         verifySubscribe(subscribeSig, rvs);
@@ -160,9 +155,8 @@ contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
         UnSubSig calldata unsubscribeSig, 
         bytes memory rvs
     ) external transferExecutionFee(
-        users[unsubscribeSig.sig.signer], 
         unsubscribeSig.sig.signer, 
-        users[msg.sender], 
+        msg.sender, 
         unsubscribeSig.sig.executionFee
     ) {
         verifyUnsubscribe(unsubscribeSig, rvs);
@@ -177,33 +171,32 @@ contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
         PaymentSig calldata payment, 
         bytes memory rvs
     ) external transferExecutionFee(
-        users[payment.sig.signer], 
         payment.sig.signer, 
-        users[msg.sender], 
+        msg.sender, 
         payment.sig.executionFee
     ) {
         verifyPayment(payment, rvs);
 
         users[payment.sig.signer].decreaseBalance(
-            payment.amount + payment.sig.executionFee,
-            _liquidationThreshold(payment.sig.signer),
-            users[protocolWallet]
+            users[protocolWallet],
+            payment.amount,
+            _liquidationThreshold(payment.sig.signer)
         );
+
         users[payment.receiver].increaseBalance(payment.amount);
-        users[msg.sender].increaseBalance(payment.sig.executionFee);
 
         emit PayBySig(payment.sig.signer, payment.receiver, msg.sender, payment.id, payment.amount);
         emit Transfer(payment.sig.signer, payment.receiver, payment.amount);
-        emit Transfer(payment.sig.signer, msg.sender, payment.sig.executionFee);
     }
 
     function withdraw(uint256 amount) external {
-        users[msg.sender].decreaseBalance(amount, _liquidationThreshold(msg.sender), users[protocolWallet]);
+        users[msg.sender].decreaseBalance(users[protocolWallet], amount, _liquidationThreshold(msg.sender));
         totalBalance -= amount;
 
         TOKEN.safeTransfer(msg.sender, amount);
 
         emit Withdraw(msg.sender, amount);
+        emit Transfer(address(this), msg.sender, amount);
     }
 
     function liquidate(address account) external {
@@ -236,6 +229,7 @@ contract PayoutMock is IPayoutV2R, PayoutSigVerifier {
         }
 
         emit Deposit(to, amount);
+        emit Transfer(from, to, amount);
     }
 
     function _unsubscribeChecks(address user, address author) private view returns (uint) {

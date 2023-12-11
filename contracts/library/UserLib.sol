@@ -8,16 +8,16 @@ library UserLib {
     error InsufficialBalance();
     error ReduceTheAmount();
 
-    uint constant SAFE_LIQUIDATION_TIME = 2 days;
-    uint constant LIQUIDATION_TIME = 1 days;
+    uint256 constant SAFE_LIQUIDATION_TIME = 2 days;
+    uint256 constant LIQUIDATION_TIME = 1 days;
 
     uint16 public constant FLOOR = 10000;
 
     struct User {
+        int balance;
+        uint incomeRate; // changes to this field requires _syncBalance() call
+        uint outgoingRate; // changes to this field requires _syncBalance() call
         uint40 updTimestamp;
-        int256 balance;
-        uint256 incomeRate; // changes to this field requires _syncBalance() call
-        uint256 outgoingRate; // changes to this field requires _syncBalance() call
         PayoutSigVerifier.Settings settings;
     }
 
@@ -52,11 +52,11 @@ library UserLib {
         if (isSafeLiquidatable(user, threshold)) revert TopUpBalance();
     }
 
-    function increaseBalance(User storage user, uint amount) internal {
+    function increaseBalance(User storage user, uint256 amount) internal {
         user.balance += int(amount);
     }
 
-    function decreaseBalance(User storage user, uint amount, int256 threshold, User storage protocol) internal {
+    function decreaseBalance(User storage user, User storage protocol, uint256 amount, int256 threshold) internal {
         _syncBalance(user, protocol);
         if (user.balance < int(amount)) revert InsufficialBalance();
         user.balance -= int(amount);
