@@ -73,11 +73,11 @@ describe('Payout test', function () {
         it("Method: changeSubscribeRate", async function () {
             const {coinPriceFeed, tokenPriceFeed, token, payout} = await baseSetup(signer.address, owner.address)
 
-            expect((await payout.users(user_1.address)).subscriptionRate).to.be.eq(0)
+            expect((await payout.users(user_1.address)).settings.subscriptionRate).to.be.eq(0)
 
             await payout.connect(user_1).changeSubscriptionRate(42)
 
-            expect((await payout.users(user_1.address)).subscriptionRate).to.be.eq(42)
+            expect((await payout.users(user_1.address)).settings.subscriptionRate).to.be.eq(42)
         })
         it("Method: subscribe", async function () {
             // const {coinPriceFeed, tokenPriceFeed, token, payout} = await baseSetup(signer.address, owner.address)
@@ -139,7 +139,6 @@ describe('Payout test', function () {
             // await payout.connect(user_1).withdraw(SIX_USDT)
 
             // expect(await token.balanceOf(user_1)).to.be.eq(SIX_USDT)
-            
         })
         it("Method: liquidate", async function () {
             // const {coinPriceFeed, tokenPriceFeed, token, payout} = await baseSetup(signer.address, owner.address)

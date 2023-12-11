@@ -35,6 +35,45 @@ PaymentTypes = {
   ]
 }
 
+SubscribeTypes = {
+  Subsig: [
+    {name: 'sig', type: 'Sig'},
+    {name: 'author', type: 'address'},
+    {name: 'maxRate', type: 'uint256'},
+    {name: 'id', type: 'bytes32'}
+  ],
+  Sig: [
+    {name: 'signer', type: 'address'},
+    {name: 'nonce', type: 'uint256'},
+    {name: 'executionFee', type: 'uint256'}
+  ]
+}
+
+UnsubscribeTypes = {
+  UnSubSig: [
+    {name: 'sig', type: 'Sig'},
+    {name: 'author', type: 'address'},
+    {name: 'id', type: 'byte32'}
+  ],
+  Sig: [
+    {name: 'signer', type: 'address'},
+    {name: 'nonce', type: 'uint256'},
+    {name: 'executionFee', type: 'uint256'}
+  ]
+}
+
+DepositTypes = {
+  DepositSig: [
+    {name: 'sig', type: 'Sig'},
+    {name: 'amount', type: 'uint256'}
+  ],
+  Sig: [
+    {name: 'signer', type: 'address'},
+    {name: 'nonce', type: 'uint256'},
+    {name: 'executionFee', type: 'uint256'}
+  ]
+}
+
 function buildData (chainId_, verifyingContract_, types, data){
   const domain = {
     name: SIGNING_DOMAIN_NAME,
@@ -60,8 +99,26 @@ async function signPayment (chainId, target, paymentData, wallet) {
   return await wallet._signTypedData(data.domain, data.types, data.value)
 }
 
+async function signSubscribe (chainId, target, subscribeData, wallet) {
+  const data = buildData(chainId, target, SubscribeTypes, subscribeData)
+  return await wallet._signTypedData(data.domain, data.types, data.value)
+}
+
+async function signUnSubscribe (chainId, target, unsubscribeData, wallet) {
+  const data = buildData(chainId, target, UnsubscribeTypes, unsubscribeData)
+  return await wallet._signTypedData(data.domain, data.types, data.value)
+}
+
+async function signDeposit (chainId, target, depositData, wallet) {
+  const data = buildData(chainId, target, DepositTypes, depositData)
+  return await wallet._signTypedData(data.domain, data.types, data.value)
+}
+
 module.exports = {
   buildData,
   signSettings,
-  signPayment
+  signPayment,
+  signSubscribe,
+  signUnSubscribe,
+  signDeposit
 }
