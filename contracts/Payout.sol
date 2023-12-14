@@ -15,7 +15,7 @@ contract Payout is IPayout, PayoutSigVerifier {
     using UserLib for UserLib.User;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    uint256 public constant APPROX_LIQUIDATE_GAS = 140000;
+    uint256 public constant APPROX_LIQUIDATE_GAS = 120000;
     uint256 public constant APPROX_SUBSCRIPTION_GAS = 8000;
     uint8 public constant COIN_DECIMALS = 18;
     uint8 public constant SUBSCRIPTION_THRESHOLD = 100;
@@ -195,8 +195,7 @@ contract Payout is IPayout, PayoutSigVerifier {
 
         TOKEN.safeTransfer(msg.sender, amount);
 
-        emit Withdraw(msg.sender, amount);
-        emit Transfer(address(this), msg.sender, amount);
+        emit Transfer(msg.sender, address(0), amount);
     }
 
     function liquidate(address account) external {

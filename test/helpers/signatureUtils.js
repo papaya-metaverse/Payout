@@ -1,4 +1,4 @@
-const { ethers } = require('hardhat');
+const { ethers } = hre
 
 const SIGNING_DOMAIN_NAME = 'PayoutSigVerifier';
 const SIGNING_DOMAIN_VERSION = '1';

@@ -28,12 +28,12 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
         tokenDecimals
     ]
 
-    const payout = await deploy('PayoutV2R', {
+    const payout = await deploy('Payout', {
         from: deployer,
         args
     })
 
-    console.log("PayoutV2R deployed to: ", payout.address)
+    console.log("Payout deployed to: ", payout.address)
 
     if (await getChainId() !== '31337') {
         await hre.run(`verify:verify`, {

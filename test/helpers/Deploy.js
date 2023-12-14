@@ -1,7 +1,7 @@
 const hre = require('hardhat')
 const { ethers } = hre
 
-const TOKEN_DECIMALS = 18
+const TOKEN_DECIMALS = 6
 
 async function deployToken() {
     const name = "TEST"
@@ -70,7 +70,7 @@ async function baseSetup(
         tokenPriceFeed.address
     )
 
-    return {coinPriceFeed, tokenPriceFeed, token, payout}
+    return {token, payout}
 }
 
 module.exports = {
