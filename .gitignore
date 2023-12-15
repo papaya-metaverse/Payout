@@ -1,5 +1,4 @@
 node_modules
-.env
 coverage
 coverage.json
 typechain
@@ -8,7 +7,6 @@ keys.json
 .gitbook.yaml
 gas-report
 slither-results.json
-package-lock.json
 
 #Hardhat files
 cache
