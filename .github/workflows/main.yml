@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ refactoring ]
+    branches: [ main ]
   pull_request:
-    branches: [ refactoring ]
+    branches: [ main ]
 jobs:
   test:
     runs-on: ubuntu-latest
