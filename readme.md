@@ -19,16 +19,40 @@ yarn test
 ```
 # PAYOUT
 
-The developers aimed to create a payout to social network with paid access. 
-The architecture, includes time series for subscription management, decision to forego a referral system, user fee retention methods, and variable fee percentages. It leverages advanced blockchain features like EIP-712 for electronic signatures and EIP-1559 for better transaction fee management.
+Papaya Metaverse introduces a groundbreaking Smart-Contract, "Payout," designed to revolutionize the world of subscriptions and financial transactions in the realm of cryptocurrencies. This cutting-edge project is dedicated to fostering a dynamic two-way economy, empowering users to both earn and spend tokens within the platform.
 
-**Features**
-- Collect payouts from millions of fans in a single transaction
-- Subscribe to the creators with any possible ways
-- Buy any additional content that not consist of subscription
-- EIP-4337 support
+## Key Features
+### Empowering Subscriptions:
+
+- Seamlessly update your subscription settings using the protocol's secure electronic signature.
+- Deposit and manage your tokens effortlessly, supporting integration with external services for a holistic financial experience.
+- Explore innovative payment methods with depositWithPermit and depositBySig for ERC20 tokens.
+
+### Flexible Subscription Management:
+
+- Tailor your experience by adjusting subscription rates to match your preferences.
+- Keep track of your current balance with the balanceOf feature, ensuring transparency and control over your financial portfolio.
+- Engage in fluid subscription management with subscribe and unsubscribe options, supported by signature-based transactions.
+- Enjoy the revolutionary ability to earn from an unlimited number of subscribers.
+- Effortlessly withdraw your earnings from the platform using the withdraw feature, allowing withdrawal of all earnings in a single transaction.
+
+## Monetize and Enjoy Content:
+- Experience the freedom of paying for exclusive content or services with the payBySig method, combining security and convenience.
+
+## Secure and Smart Operations:
+
+- Trust in the platform's robust security measures, allowing liquidation only under specific risk conditions.
+
+## Innovative Economics: 
+- Papaya Metaverse is at the forefront of progressive smart contracts, introducing innovative features to redefine financial interactions.
+
+## Continuous Development: 
+- Our commitment to continuous improvement ensures that users and investors stay ahead in the dynamic world of cryptocurrencies.
+
+## User-Centric Design:
+- Papaya Payout is designed with users in mind, providing a seamless and secure experience for managing subscriptions, earnings, and transactions.
   
-### Supported tokens
+## Supported tokens
 
 - ERC 20
 - Other token standards could be supported via external extension
