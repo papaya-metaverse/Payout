@@ -45,7 +45,17 @@ module.exports = {
             '@1inch/solidity-utils/contracts/mocks/TokenMock.sol',
         ],
     },
+    etherscan: {
+      apiKey:{
+        polygonMumbai: `${process.env.POLYGONSCAN_API_KEY}`
+      }
+    },
     defaultNetwork: "hardhat",
+    namedAccounts: {
+      deployer: {
+          default: 0,
+      },
+    },
     networks: {
       hardhat: {
         /**
@@ -66,6 +76,13 @@ module.exports = {
           auto: true,
           interval: 5000
         }
-      }
+      },
+      mumbai: {
+        chainId: 80001,
+        url: `https://polygon-mumbai.g.alchemy.com/v2/${process.env.ALCHEMY_MUMBAI_KEY}`,
+        accounts: {
+          mnemonic: `${process.env.SEED_PHRASE_DEPLOYER}`,
+        }
+      },
     },
 };

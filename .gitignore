@@ -7,6 +7,7 @@ keys.json
 .gitbook.yaml
 gas-report
 slither-results.json
+.env
 
 #Hardhat files
 cache

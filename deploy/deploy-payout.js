@@ -1,8 +1,6 @@
 
 const hre = require('hardhat');
 const { getChainId } = hre;
-const { networkConfig } = require("../helper-hardhat-config");
-
 
 module.exports = async ({ getNamedAccounts, deployments }) => {
     console.log("running deploy payout script");
@@ -12,12 +10,12 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     const { deploy } = deployments;
     const { deployer } = await getNamedAccounts();
 
-    const protocolSigner = networkConfig[network.name].payoutV2R.protocolSigner
-    const serviceWallet = networkConfig[network.name].payoutV2R.serviceWallet
-    const chainPriceFeed = networkConfig[network.name].payoutV2R.chainPriceFeed
-    const tokenPriceFeed = networkConfig[network.name].payoutV2R.tokenPriceFeed
-    const token = networkConfig[network.name].payoutV2R.token
-    const tokenDecimals = networkConfig[network.name].payoutV2R.tokenDecimals
+    const protocolSigner = process.env.PUBLIC_KEY_SIGNER
+    const serviceWallet = process.env.PUBLIC_KEY_SERVICE_WALLET
+    const chainPriceFeed = process.env.COIN_PRICE_FEED
+    const tokenPriceFeed = process.env.TOKEN_PRICE_FEED
+    const token = process.env.TOKEN
+    const tokenDecimals = process.env.TOKEN_DECIMALS
 
     const args = [
         protocolSigner,
