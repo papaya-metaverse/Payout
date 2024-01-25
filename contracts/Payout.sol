@@ -73,7 +73,13 @@ contract Payout is IPayout, PayoutSigVerifier {
             revert UserLib.InsufficialBalance();
         }
 
-        token.safeTransfer(protocolWallet, amount);
+        if (address(token) == address(0)) {
+            (bool success, ) = payable(msg.sender).call{value: amount}("");
+
+            require(success, "Payout: Transfer coin failed");
+        } else {
+            token.safeTransfer(protocolWallet, amount);
+        }
     }
 
     function updateSettings(
