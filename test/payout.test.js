@@ -55,7 +55,7 @@ describe('Payout test', function () {
                 }
             };
 
-            const signature = await signSettings(CHAIN_ID, payout.address, settingsData, signer)
+            const signature = await signSettings(CHAIN_ID, await payout.getAddress(), settingsData, signer)
             
             await payout.connect(user_1).updateSettings(settingsData, signature)
 
@@ -67,7 +67,7 @@ describe('Payout test', function () {
             const {token, payout} = await baseSetup(signer.address, owner.address)
 
             await token.transfer(user_1.address, SIX_USDT)
-            await token.connect(user_1).approve(payout.address, SIX_USDT)
+            await token.connect(user_1).approve(await payout.getAddress(), SIX_USDT)
 
             await payout.connect(user_1).deposit(SIX_USDT)
         })
@@ -84,7 +84,7 @@ describe('Payout test', function () {
             const {token, payout} = await baseSetup(signer.address, owner.address)
 
             await token.transfer(user_1.address, SIX_USDT)
-            await token.connect(user_1).approve(payout.address, SIX_USDT)
+            await token.connect(user_1).approve(await payout.getAddress(), SIX_USDT)
 
             await payout.connect(user_1).deposit(SIX_USDT)
             
@@ -103,13 +103,13 @@ describe('Payout test', function () {
                 }
             };
 
-            let signature = await signSettings(CHAIN_ID, payout.address, settingsData, signer)
+            let signature = await signSettings(CHAIN_ID, await payout.getAddress(), settingsData, signer)
 
             await payout.connect(user_1).updateSettings(settingsData, signature)
 
             nonce = await payout.nonces(user_2.address)
             settingsData.user = user_2.address
-            signature = await signSettings(CHAIN_ID, payout.address, settingsData, signer)
+            signature = await signSettings(CHAIN_ID, await payout.getAddress(), settingsData, signer)
 
             await payout.connect(user_2).updateSettings(settingsData, signature)
 
@@ -122,7 +122,7 @@ describe('Payout test', function () {
             const {token, payout} = await baseSetup(signer.address, owner.address)
 
             await token.transfer(user_1.address, SIX_USDT)
-            await token.connect(user_1).approve(payout.address, SIX_USDT)
+            await token.connect(user_1).approve(await payout.getAddress(), SIX_USDT)
 
             await payout.connect(user_1).deposit(SIX_USDT)
             
@@ -141,13 +141,13 @@ describe('Payout test', function () {
                 }
             };
 
-            let signature = await signSettings(CHAIN_ID, payout.address, settingsData, signer)
+            let signature = await signSettings(CHAIN_ID, await payout.getAddress(), settingsData, signer)
 
             await payout.connect(user_1).updateSettings(settingsData, signature)
 
             nonce = await payout.nonces(user_2.address)
             settingsData.user = user_2.address
-            signature = await signSettings(CHAIN_ID, payout.address, settingsData, signer)
+            signature = await signSettings(CHAIN_ID, await payout.getAddress(), settingsData, signer)
 
             await payout.connect(user_2).updateSettings(settingsData, signature)
 
@@ -171,7 +171,7 @@ describe('Payout test', function () {
             const {token, payout} = await baseSetup(signer.address, owner.address)
 
             await token.transfer(user_1.address, SIX_USDT)
-            await token.connect(user_1).approve(payout.address, SIX_USDT)
+            await token.connect(user_1).approve(await payout.getAddress(), SIX_USDT)
 
             await payout.connect(user_1).deposit(SIX_USDT)
 
@@ -190,13 +190,13 @@ describe('Payout test', function () {
                 }
             };
 
-            let signature = await signSettings(CHAIN_ID, payout.address, settingsData, signer)
+            let signature = await signSettings(CHAIN_ID, await payout.getAddress(), settingsData, signer)
 
             await payout.connect(user_1).updateSettings(settingsData, signature)
 
             nonce = await payout.nonces(user_2.address)
             settingsData.user = user_2.address
-            signature = await signSettings(CHAIN_ID, payout.address, settingsData, signer)
+            signature = await signSettings(CHAIN_ID, await payout.getAddress(), settingsData, signer)
 
             await payout.connect(user_2).updateSettings(settingsData, signature)
 
@@ -211,7 +211,7 @@ describe('Payout test', function () {
                 amount: FIVE_USDT,
                 id: constants.ZERO_BYTES32
             }
-            signature = await signPayment(CHAIN_ID, payout.address, paymentData, user_1)
+            signature = await signPayment(CHAIN_ID, await payout.getAddress(), paymentData, user_1)
 
             await payout.payBySig(paymentData, signature)
 
@@ -223,7 +223,7 @@ describe('Payout test', function () {
             const {token, payout} = await baseSetup(signer.address, owner.address)
 
             await token.transfer(user_1.address, SIX_USDT)
-            await token.connect(user_1).approve(payout.address, SIX_USDT)
+            await token.connect(user_1).approve(await payout.getAddress(), SIX_USDT)
 
             await payout.connect(user_1).deposit(SIX_USDT)
 
@@ -235,7 +235,7 @@ describe('Payout test', function () {
             const {token, payout} = await baseSetup(signer.address, owner.address)
 
             await token.transfer(user_1.address, ELEVEN_USDT)
-            await token.connect(user_1).approve(payout.address, ELEVEN_USDT)
+            await token.connect(user_1).approve(await payout.getAddress(), ELEVEN_USDT)
 
             await payout.connect(user_1).deposit(ELEVEN_USDT)
             
@@ -254,13 +254,13 @@ describe('Payout test', function () {
                 }
             };
 
-            let signature = await signSettings(CHAIN_ID, payout.address, settingsData, signer)
+            let signature = await signSettings(CHAIN_ID, await payout.getAddress(), settingsData, signer)
 
             await payout.connect(user_1).updateSettings(settingsData, signature)
 
             nonce = await payout.nonces(user_2.address)
             settingsData.user = user_2.address
-            signature = await signSettings(CHAIN_ID, payout.address, settingsData, signer)
+            signature = await signSettings(CHAIN_ID, await payout.getAddress(), settingsData, signer)
 
             await payout.connect(user_2).updateSettings(settingsData, signature)
 

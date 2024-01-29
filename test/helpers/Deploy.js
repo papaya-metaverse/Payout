@@ -6,7 +6,7 @@ const TOKEN_DECIMALS = 6
 async function deployToken() {
     const name = "TEST"
     const symbol = "TST"
-    const totalSupply = ethers.utils.parseEther("2850000000000")
+    const totalSupply = ethers.parseEther("2850000000000")
 
     const args = [
         name,
@@ -33,6 +33,7 @@ async function deployTokenPriceFeed() {
 }
 
 async function deployPayout(
+    admin,
     protocolSigner,
     protocolWalletAddr,
     tokenAddress,
@@ -40,6 +41,7 @@ async function deployPayout(
     tokenPriceFeedAddr
 ) {
     const args = [
+        admin,
         protocolSigner,
         protocolWalletAddr,
         nativePriceFeedAddr,
@@ -50,27 +52,28 @@ async function deployPayout(
 
     const contract = await ethers.deployContract("PayoutMock", args)
 
-    return contract
+    return contract 
 }
 
 async function baseSetup(
     protocolSigner,
     protocolWalletAddr,
 ) {
-    let coinPriceFeed = await deployNativePriceFeed()
-    let tokenPriceFeed = await deployTokenPriceFeed()
+    const coinPriceFeed = await deployNativePriceFeed()
+    const tokenPriceFeed = await deployTokenPriceFeed()
 
-    let token = await deployToken()
+    const token = await deployToken()
 
-    let payout = await deployPayout(
+    const payout = await deployPayout(
+        protocolWalletAddr,
         protocolSigner,
         protocolWalletAddr,
-        token.address,
-        coinPriceFeed.address,
-        tokenPriceFeed.address
+        await token.getAddress(),
+        await coinPriceFeed.getAddress(),
+        await tokenPriceFeed.getAddress()
     )
 
-    return {token, payout}
+    return { token, payout }
 }
 
 module.exports = {

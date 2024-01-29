@@ -1,5 +1,4 @@
-require('@nomiclabs/hardhat-ethers');
-require('@nomiclabs/hardhat-etherscan');
+require('@nomicfoundation/hardhat-verify');
 require('@nomicfoundation/hardhat-chai-matchers');
 require("hardhat-contract-sizer");
 require('hardhat-dependency-compiler');
@@ -13,7 +12,7 @@ module.exports = {
         enableAllOpcodes: true,
     },
     solidity: {
-        version: '0.8.19',
+        version: '0.8.24',
         settings: {
             optimizer: {
                 enabled: true,

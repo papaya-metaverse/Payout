@@ -91,27 +91,27 @@ function buildData (chainId_, verifyingContract_, types, data){
 
 async function signSettings (chainId, target, settingsData, wallet) {
   const data = buildData(chainId, target, SettingsTypes, settingsData)
-  return await wallet._signTypedData(data.domain, data.types, data.value)
+  return await wallet.signTypedData(data.domain, data.types, data.value)
 }
 
 async function signPayment (chainId, target, paymentData, wallet) {
   const data = buildData(chainId, target, PaymentTypes, paymentData)
-  return await wallet._signTypedData(data.domain, data.types, data.value)
+  return await wallet.signTypedData(data.domain, data.types, data.value)
 }
 
 async function signSubscribe (chainId, target, subscribeData, wallet) {
   const data = buildData(chainId, target, SubscribeTypes, subscribeData)
-  return await wallet._signTypedData(data.domain, data.types, data.value)
+  return await wallet.signTypedData(data.domain, data.types, data.value)
 }
 
 async function signUnSubscribe (chainId, target, unsubscribeData, wallet) {
   const data = buildData(chainId, target, UnsubscribeTypes, unsubscribeData)
-  return await wallet._signTypedData(data.domain, data.types, data.value)
+  return await wallet.signTypedData(data.domain, data.types, data.value)
 }
 
 async function signDeposit (chainId, target, depositData, wallet) {
   const data = buildData(chainId, target, DepositTypes, depositData)
-  return await wallet._signTypedData(data.domain, data.types, data.value)
+  return await wallet.signTypedData(data.domain, data.types, data.value)
 }
 
 module.exports = {

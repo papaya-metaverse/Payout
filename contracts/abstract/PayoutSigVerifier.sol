@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.19;
+pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
@@ -58,7 +58,10 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
 
     address protocolSigner;
 
-    constructor(address protocolSigner_) EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {
+    constructor(
+        address protocolSigner_, 
+        address admin
+    ) EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) Ownable(admin) {
         protocolSigner = protocolSigner_;
     }
 

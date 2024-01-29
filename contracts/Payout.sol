@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.19;
+pragma solidity 0.8.24;
 
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {SafeERC20} from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
@@ -50,13 +50,14 @@ contract Payout is IPayout, PayoutSigVerifier {
     }
 
     constructor(
+        address admin,
         address protocolSigner_,
         address protocolWallet_,
         address CHAIN_PRICE_FEED_,
         address TOKEN_PRICE_FEED_,
         address TOKEN_,
         uint8 TOKEN_DECIMALS_
-    ) PayoutSigVerifier(protocolSigner_) {
+    ) PayoutSigVerifier(protocolSigner_, admin) {
         COIN_PRICE_FEED = AggregatorV3Interface(CHAIN_PRICE_FEED_);
         TOKEN_PRICE_FEED = AggregatorV3Interface(TOKEN_PRICE_FEED_);
         TOKEN = IERC20(TOKEN_);
