@@ -10,14 +10,16 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     const { deploy } = deployments;
     const { deployer } = await getNamedAccounts();
 
+    const admin = process.env.PUBLIC_KEY_ADMIN
     const protocolSigner = process.env.PUBLIC_KEY_SIGNER
-    const serviceWallet = process.env.PUBLIC_KEY_SERVICE_WALLET
+    const serviceWallet = process.env.PUBLIC_KEY_ADMIN
     const chainPriceFeed = process.env.COIN_PRICE_FEED
     const tokenPriceFeed = process.env.TOKEN_PRICE_FEED
     const token = process.env.TOKEN
     const tokenDecimals = process.env.TOKEN_DECIMALS
 
     const args = [
+        admin,
         protocolSigner,
         serviceWallet, 
         chainPriceFeed,

@@ -46,7 +46,8 @@ module.exports = {
     },
     etherscan: {
       apiKey:{
-        polygonMumbai: `${process.env.POLYGONSCAN_API_KEY}`
+        polygonMumbai: `${process.env.POLYGONSCAN_API_KEY}`,
+        polygon: `${process.env.POLYGONSCAN_API_KEY}`
       }
     },
     defaultNetwork: "hardhat",
