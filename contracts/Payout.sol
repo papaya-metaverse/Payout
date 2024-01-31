@@ -95,15 +95,15 @@ contract Payout is IPayout, PayoutSigVerifier {
         emit UpdateSettings(settings.user, settings.settings.userFee, settings.settings.protocolFee);
     }
 
-    function deposit(uint amount) external {
+    function deposit(uint256 amount) external {
         _deposit(msg.sender, msg.sender, amount, false);
     }
 
-    function depositFor(uint amount, address to) external {
+    function depositFor(uint256 amount, address to) external {
         _deposit(msg.sender, to, amount, false);
     }
 
-    function depositWithPermit(bytes calldata permitData, uint amount) external {
+    function depositWithPermit(bytes calldata permitData, uint256 amount) external {
         TOKEN.tryPermit(permitData);
         _deposit(msg.sender, msg.sender, amount, _isPermit2(permitData.length));
     }
@@ -128,11 +128,11 @@ contract Payout is IPayout, PayoutSigVerifier {
         emit ChangeSubscriptionRate(msg.sender, subscriptionRate);
     }
 
-    function balanceOf(address account) external view  returns (uint) {
-        return uint(SignedMath.max(users[account].balanceOf(), int(0)));
+    function balanceOf(address account) external view  returns (uint256) {
+        return uint256(SignedMath.max(users[account].balanceOf(), int(0)));
     }
 
-    function subscribe(address author, uint maxRate, bytes32 id) external {
+    function subscribe(address author, uint256 maxRate, bytes32 id) external {
         _subscribeChecksAndEffects(msg.sender, author, maxRate);
 
         emit Subscribe(msg.sender, author, id);
@@ -225,7 +225,7 @@ contract Payout is IPayout, PayoutSigVerifier {
         return length == 96 || length == 352;
     }
 
-    function _deposit(address from, address to, uint amount, bool usePermit2) internal virtual {
+    function _deposit(address from, address to, uint256 amount, bool usePermit2) internal virtual {
         users[to].increaseBalance(amount);
         totalBalance += amount;
 
@@ -239,7 +239,7 @@ contract Payout is IPayout, PayoutSigVerifier {
         emit Transfer(from, to, amount);
     }
 
-    function _unsubscribeChecks(address user, address author) private view returns (uint) {
+    function _unsubscribeChecks(address user, address author) private view returns (uint256) {
         (bool success, uint actualRate) = _subscriptions[user].tryGet(author);
         if (!success) revert NotSubscribed();
 
@@ -252,7 +252,7 @@ contract Payout is IPayout, PayoutSigVerifier {
         _subscriptions[user].remove(author);
     }
 
-    function _subscribeChecksAndEffects(address user, address author, uint maxRate) private {
+    function _subscribeChecksAndEffects(address user, address author, uint256 maxRate) private {
         (bool success, uint actualRate) = _subscriptions[user].tryGet(author);
         if (success) _unsubscribeEffects(user, author, uint96(actualRate));
 
@@ -266,7 +266,7 @@ contract Payout is IPayout, PayoutSigVerifier {
         _subscriptions[user].set(author, subscriptionRate);
     }
 
-    function _liquidationThreshold(address user) private view returns (int) {
+    function _liquidationThreshold(address user) internal view returns (int256) {
         (, int256 tokenPrice, , , ) = TOKEN_PRICE_FEED.latestRoundData();
         (, int256 coinPrice, , , ) = COIN_PRICE_FEED.latestRoundData();
 
