@@ -197,7 +197,7 @@ contract Payout is IPayout, PayoutSigVerifier {
         emit Transfer(payment.sig.signer, payment.receiver, payment.amount);
     }
 
-    function withdraw(uint256 amount) external {
+    function withdraw(uint256 amount) external virtual {
         users[msg.sender].decreaseBalance(users[protocolWallet], amount, _liquidationThreshold(msg.sender));
         totalBalance -= amount;
 
@@ -225,7 +225,7 @@ contract Payout is IPayout, PayoutSigVerifier {
         return length == 96 || length == 352;
     }
 
-    function _deposit(address from, address to, uint amount, bool usePermit2) private {
+    function _deposit(address from, address to, uint amount, bool usePermit2) internal virtual {
         users[to].increaseBalance(amount);
         totalBalance += amount;
 

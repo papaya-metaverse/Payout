@@ -12,14 +12,47 @@ module.exports = {
         enableAllOpcodes: true,
     },
     solidity: {
-        version: '0.8.24',
-        settings: {
+      compilers: [
+        {
+          version: '0.8.24',
+          settings: {
             optimizer: {
-                enabled: true,
-                runs: 1_000_000,
+              enabled: true,
+              runs: 1_000_000,
             },
             viaIR: true,
+          },
         },
+      ],
+      overrides: {
+        "@aave/protocol-v2/contracts/interfaces/ILendingPool.sol": {
+          version: '0.6.12',
+          settings: {
+            optimizer: {
+              enabled: true,
+              runs: 200,
+            }
+          },
+        },
+        "@aave/protocol-v2/contracts/interfaces/ILendingPoolAddressesProvider.sol": {
+          version: '0.6.12',
+          settings: {
+            optimizer: {
+              enabled: true,
+              runs: 200,
+            }
+          },
+        },
+        "@aave/protocol-v2/contracts/protocol/libraries/types/DataTypes.sol": {
+          version: '0.6.12',
+          settings: {
+            optimizer: {
+              enabled: true,
+              runs: 200,
+            }
+          },
+        },
+      }
     },
     namedAccounts: {
         deployer: {
@@ -46,8 +79,8 @@ module.exports = {
     },
     etherscan: {
       apiKey:{
-        polygonMumbai: `${process.env.POLYGONSCAN_API_KEY}`,
-        polygon: `${process.env.POLYGONSCAN_API_KEY}`
+        polygonMumbai: `${process.env.POLYGONSCAN_API_KEY}` || '',
+        polygon: `${process.env.POLYGONSCAN_API_KEY}` || ''
       }
     },
     defaultNetwork: "hardhat",
