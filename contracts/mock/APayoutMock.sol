@@ -11,9 +11,6 @@ contract APayoutMock is PayoutMock {
 
     ILendingPool public immutable LENDING_POOL;
 
-    bytes4 public constant DEPOSIT_SELECTOR = 0xa27845a0;
-    bytes4 public constant WITHDRAW_SELECTOR= 0xf7c4cdf3; 
-
     uint16 public refferal;
 
     constructor(
