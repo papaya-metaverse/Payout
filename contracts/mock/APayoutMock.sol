@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 import {SafeERC20} from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
-import "./interfaces/ILendingPool.sol";
-import "./library/UserLib.sol";
-import "./Payout.sol";
+import "../interfaces/ILendingPool.sol";
+import "../library/UserLib.sol";
+import "./PayoutMock.sol";
 
-contract APayout is Payout {
+contract APayoutMock is PayoutMock {
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
 
@@ -25,7 +25,7 @@ contract APayout is Payout {
         address TOKEN_,
         uint8 TOKEN_DECIMALS_,
         ILendingPool LENDING_POOL_
-    ) Payout (
+    ) PayoutMock (
         admin,
         protocolSigner_,
         protocolWallet_,

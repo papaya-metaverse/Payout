@@ -20,17 +20,17 @@ interface IPayout {
     error ExcessOfRate();
     error ExcessOfSubscriptions();
 
-    function deposit(uint amount) external;
+    function deposit(uint256 amount) external;
 
-    function depositFor(uint amount, address user) external;
+    function depositFor(uint256 amount, address user) external;
 
     function changeSubscriptionRate(uint96 rate) external;
 
-    function subscribe(address author, uint maxRate, bytes32 id) external;
+    function subscribe(address author, uint96 maxRate, bytes32 id) external;
 
     function unsubscribe(address author, bytes32 id) external;
 
-    function withdraw(uint amount) external;
+    function withdraw(uint256 amount) external;
 
     function liquidate(address account) external;
 

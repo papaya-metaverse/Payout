@@ -39,7 +39,7 @@ SubscribeTypes = {
   Subsig: [
     {name: 'sig', type: 'Sig'},
     {name: 'author', type: 'address'},
-    {name: 'maxRate', type: 'uint256'},
+    {name: 'maxRate', type: 'uint96'},
     {name: 'id', type: 'bytes32'}
   ],
   Sig: [

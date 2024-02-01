@@ -132,7 +132,7 @@ contract Payout is IPayout, PayoutSigVerifier {
         return uint256(SignedMath.max(users[account].balanceOf(), int(0)));
     }
 
-    function subscribe(address author, uint256 maxRate, bytes32 id) external {
+    function subscribe(address author, uint96 maxRate, bytes32 id) external {
         _subscribeChecksAndEffects(msg.sender, author, maxRate);
 
         emit Subscribe(msg.sender, author, id);
@@ -212,7 +212,7 @@ contract Payout is IPayout, PayoutSigVerifier {
 
         EnumerableMap.AddressToUintMap storage user_subscriptions = _subscriptions[account];
         for (uint i = user_subscriptions.length(); i > 0; i--) {
-            (address author, uint subscriptionRate) = user_subscriptions.at(i - 1);
+            (address author, uint256 subscriptionRate) = user_subscriptions.at(i - 1);
 
             _unsubscribeEffects(account, author, uint96(subscriptionRate));
         }
@@ -252,8 +252,8 @@ contract Payout is IPayout, PayoutSigVerifier {
         _subscriptions[user].remove(author);
     }
 
-    function _subscribeChecksAndEffects(address user, address author, uint256 maxRate) private {
-        (bool success, uint actualRate) = _subscriptions[user].tryGet(author);
+    function _subscribeChecksAndEffects(address user, address author, uint96 maxRate) private {
+        (bool success, uint256 actualRate) = _subscriptions[user].tryGet(author);
         if (success) _unsubscribeEffects(user, author, uint96(actualRate));
 
         if (_subscriptions[user].length() == SUBSCRIPTION_THRESHOLD) revert ExcessOfSubscriptions();
@@ -273,12 +273,12 @@ contract Payout is IPayout, PayoutSigVerifier {
         uint256 expectedNativeAssetCost = block.basefee *
             (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[user].length());
 
-        uint256 executionPrice = expectedNativeAssetCost * uint(coinPrice);
+        uint256 executionPrice = expectedNativeAssetCost * uint256(coinPrice);
 
         if (TOKEN_DECIMALS < COIN_DECIMALS) {
-            return int(executionPrice) / tokenPrice / int(10 ** (COIN_DECIMALS - TOKEN_DECIMALS));
+            return int256(executionPrice) / tokenPrice / int256(10 ** (COIN_DECIMALS - TOKEN_DECIMALS));
         } else {
-            return int(executionPrice) / tokenPrice;
+            return int256(executionPrice) / tokenPrice;
         }
     }
 }

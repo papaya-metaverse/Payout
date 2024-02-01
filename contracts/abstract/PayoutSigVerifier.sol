@@ -29,7 +29,7 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
     struct SubSig {
         Sig sig;
         address author;
-        uint256 maxRate;
+        uint96 maxRate;
         bytes32 id;
     }
 
@@ -133,7 +133,7 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
                             "SubSig("
                                 "Sig sig,"
                                 "address author,"
-                                "uint256 maxRate,"
+                                "uint96 maxRate,"
                                 "bytes32 id"
                             ")"
                             "Sig("

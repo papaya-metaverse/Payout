@@ -130,11 +130,11 @@ contract PayoutMock is IPayout, PayoutSigVerifier {
         emit ChangeSubscriptionRate(msg.sender, subscriptionRate);
     }
 
-    function balanceOf(address account) external view  returns (uint) {
-        return uint(SignedMath.max(users[account].balanceOf(), int(0)));
+    function balanceOf(address account) external view  returns (uint256) {
+        return uint256(SignedMath.max(users[account].balanceOf(), int(0)));
     }
 
-    function subscribe(address author, uint maxRate, bytes32 id) external {
+    function subscribe(address author, uint96 maxRate, bytes32 id) external {
         _subscribeChecksAndEffects(msg.sender, author, maxRate);
 
         emit Subscribe(msg.sender, author, id);
@@ -199,7 +199,7 @@ contract PayoutMock is IPayout, PayoutSigVerifier {
         emit Transfer(payment.sig.signer, payment.receiver, payment.amount);
     }
 
-    function withdraw(uint256 amount) external {
+    function withdraw(uint256 amount) external virtual {
         users[msg.sender].decreaseBalance(users[protocolWallet], amount, _liquidationThreshold(msg.sender));
         totalBalance -= amount;
 
@@ -227,7 +227,7 @@ contract PayoutMock is IPayout, PayoutSigVerifier {
         return length == 96 || length == 352;
     }
 
-    function _deposit(address from, address to, uint amount, bool usePermit2) private {
+    function _deposit(address from, address to, uint256 amount, bool usePermit2) internal virtual {
         users[to].increaseBalance(amount);
         totalBalance += amount;
 
@@ -241,7 +241,7 @@ contract PayoutMock is IPayout, PayoutSigVerifier {
         emit Transfer(from, to, amount);
     }
 
-    function _unsubscribeChecks(address user, address author) private view returns (uint) {
+    function _unsubscribeChecks(address user, address author) private view returns (uint256) {
         (bool success, uint actualRate) = _subscriptions[user].tryGet(author);
         if (!success) revert NotSubscribed();
 
@@ -254,8 +254,8 @@ contract PayoutMock is IPayout, PayoutSigVerifier {
         _subscriptions[user].remove(author);
     }
 
-    function _subscribeChecksAndEffects(address user, address author, uint maxRate) private {
-        (bool success, uint actualRate) = _subscriptions[user].tryGet(author);
+    function _subscribeChecksAndEffects(address user, address author, uint96 maxRate) private {
+        (bool success, uint256 actualRate) = _subscriptions[user].tryGet(author);
         if (success) _unsubscribeEffects(user, author, uint96(actualRate));
 
         if (_subscriptions[user].length() == SUBSCRIPTION_THRESHOLD) revert ExcessOfSubscriptions();
@@ -268,19 +268,19 @@ contract PayoutMock is IPayout, PayoutSigVerifier {
         _subscriptions[user].set(author, subscriptionRate);
     }
 
-    function _liquidationThreshold(address user) private view returns (int) {
+    function _liquidationThreshold(address user) internal view returns (int256) {
         (, int256 tokenPrice, , , ) = TOKEN_PRICE_FEED.latestRoundData();
         (, int256 coinPrice, , , ) = COIN_PRICE_FEED.latestRoundData();
 
         uint256 expectedNativeAssetCost = tx.gasprice *
             (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[user].length());
 
-        uint256 executionPrice = expectedNativeAssetCost * uint(coinPrice);
+        uint256 executionPrice = expectedNativeAssetCost * uint256(coinPrice);
 
         if (TOKEN_DECIMALS < COIN_DECIMALS) {
-            return int(executionPrice) / tokenPrice / int(10 ** (COIN_DECIMALS - TOKEN_DECIMALS));
+            return int256(executionPrice) / tokenPrice / int256(10 ** (COIN_DECIMALS - TOKEN_DECIMALS));
         } else {
-            return int(executionPrice) / tokenPrice;
+            return int256(executionPrice) / tokenPrice;
         }
     }
 }

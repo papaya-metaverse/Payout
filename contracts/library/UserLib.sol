@@ -14,9 +14,9 @@ library UserLib {
     uint16 public constant FLOOR = 10000;
 
     struct User {
-        int balance;
-        uint incomeRate; // changes to this field requires _syncBalance() call
-        uint outgoingRate; // changes to this field requires _syncBalance() call
+        int256 balance;
+        uint256 incomeRate; // changes to this field requires _syncBalance() call
+        uint256 outgoingRate; // changes to this field requires _syncBalance() call
         uint40 updTimestamp;
         PayoutSigVerifier.Settings settings;
     }
@@ -68,11 +68,11 @@ library UserLib {
         user.balance = 0;
     }
 
-    function balanceOf(User storage user) internal view returns (int balance) {
+    function balanceOf(User storage user) internal view returns (int256 balance) {
         (balance, ) = _fullBalanceOf(user, 0);
     }
 
-    function balanceOf(User storage user, uint256 afterDelay) internal view returns (int balance) {
+    function balanceOf(User storage user, uint256 afterDelay) internal view returns (int256 balance) {
         (balance, ) = _fullBalanceOf(user, afterDelay);
     }
 
@@ -89,9 +89,9 @@ library UserLib {
         return currentRate < 0 && balanceOf(user, afterDelay) < threshold;
     }
 
-    function _currentRateAndProtocolFee(User storage user) private view returns (int, uint256) {
+    function _currentRateAndProtocolFee(User storage user) private view returns (int256, uint256) {
         return (
-            int256((int(user.incomeRate) * int16(user.settings.userFee)) / int16(FLOOR) - int(user.outgoingRate)),
+            int256((int256(user.incomeRate) * int16(user.settings.userFee)) / int16(FLOOR) - int256(user.outgoingRate)),
             uint((user.incomeRate * user.settings.protocolFee) / FLOOR)
         );
     }
@@ -99,7 +99,7 @@ library UserLib {
     function _fullBalanceOf(
         User storage user,
         uint256 afterDelay
-    ) private view returns (int balance, uint256 protocolFee) {
+    ) private view returns (int256 balance, uint256 protocolFee) {
         if (user.updTimestamp == uint48(block.timestamp) || user.updTimestamp == 0) return (user.balance, 0);
         (int256 currentRate, uint256 protocolRate) = _currentRateAndProtocolFee(user);
         if (currentRate == 0 && protocolRate == 0) return (user.balance, 0);
@@ -111,7 +111,7 @@ library UserLib {
     function _syncBalance(User storage user, User storage protocol) private {
         (int256 balance, uint256 protocolFee) = _fullBalanceOf(user, 0);
         if (balance != user.balance) user.balance = balance;
-        if (protocolFee > 0) protocol.balance += int(protocolFee);
+        if (protocolFee > 0) protocol.balance += int256(protocolFee);
         user.updTimestamp = uint40(block.timestamp);
     }
 }
