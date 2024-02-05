@@ -12,14 +12,27 @@ module.exports = {
         enableAllOpcodes: true,
     },
     solidity: {
-      version: '0.8.24',
-      settings: {
-        optimizer: {
-          enabled: true,
-          runs: 1_000_000,
+      compilers: [
+        {
+          version: '0.8.24',
+          settings: {
+            optimizer: {
+              enabled: true,
+              runs: 1_000_000,
+            },
+            viaIR: true,
+          },
         },
-        viaIR: true,
-      },
+        {
+          version: '0.6.12',
+          settings: {
+            optimizer: {
+              enabled: true,
+              runs: 200
+            }
+          }
+        }
+      ]
     },
     namedAccounts: {
         deployer: {
@@ -42,12 +55,16 @@ module.exports = {
         paths: [
             '@1inch/solidity-utils/contracts/mocks/TokenCustomDecimalsMock.sol',
             '@1inch/solidity-utils/contracts/mocks/TokenMock.sol',
+            '@aave/protocol-v2/contracts/protocol/lendingpool/LendingPool.sol',
+            '@aave/protocol-v2/contracts/mocks/upgradeability/MockAToken.sol'
         ],
     },
     etherscan: {
       apiKey:{
         polygonMumbai: `${process.env.POLYGONSCAN_API_KEY}` || '',
-        polygon: `${process.env.POLYGONSCAN_API_KEY}` || ''
+        polygon: `${process.env.POLYGONSCAN_API_KEY}` || '',
+        bsc: `${process.env.BSC_API_KEY}` || '',
+        bscTestnet: `${process.env.BSC_API_KEY}` || ''
       }
     },
     defaultNetwork: "hardhat",
@@ -87,6 +104,20 @@ module.exports = {
       polygon: {
         chainId: 137,
         url: `https://polygon-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_POLYGON_KEY}`,
+        accounts: {
+          mnemonic: `${process.env.SEED_PHRASE_DEPLOYER}`,
+        }
+      },
+      bsc: {
+        chainId: 56,
+        url: `https://bsc-dataseed.bnbchain.org/`,
+        accounts: {
+          mnemonic: `${process.env.SEED_PHRASE_DEPLOYER}`,
+        }
+      },
+      bscTestnet: {
+        chainId: 97,
+        url: `https://data-seed-prebsc-1-s1.bnbchain.org:8545`,
         accounts: {
           mnemonic: `${process.env.SEED_PHRASE_DEPLOYER}`,
         }

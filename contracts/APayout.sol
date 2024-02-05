@@ -5,11 +5,16 @@ import "./interfaces/ILendingPool.sol";
 import "./library/UserLib.sol";
 import "./Payout.sol";
 
+interface AToken {
+    function UNDERLYING_ASSET_ADDRESS() external view returns (IERC20);
+}
+
 contract APayout is Payout {
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
 
     ILendingPool public immutable LENDING_POOL;
+    IERC20 public immutable UNDERLYING_TOKEN;
 
     uint16 public refferal;
 
@@ -32,27 +37,23 @@ contract APayout is Payout {
         TOKEN_DECIMALS_
     ) {
         LENDING_POOL = LENDING_POOL_;
+        UNDERLYING_TOKEN = AToken(TOKEN_).UNDERLYING_ASSET_ADDRESS();
     }
 
     function updateRefferal(uint16 refferal_) external onlyOwner {
         refferal = refferal_;
     }
 
-    function withdraw(uint256 amount) external virtual override {
-        users[msg.sender].decreaseBalance(users[protocolWallet], amount, _liquidationThreshold(msg.sender));
-        totalBalance -= amount;
+    function depositUnderlying(address from, address to, uint amount, bool usePermit2) external {
+        super._deposit(UNDERLYING_TOKEN, from, to, amount, usePermit2);
 
-        LENDING_POOL.withdraw(address(TOKEN), amount, msg.sender);
-
-        emit Transfer(msg.sender, address(0), amount);
+        UNDERLYING_TOKEN.forceApprove(address(LENDING_POOL), amount);
+        LENDING_POOL.deposit(address(UNDERLYING_TOKEN), amount, address(this), refferal);
     }
+    //NOTE Поиграться с трансферами, можно попробовать сделать все в один заход
+    function withdrawUnderlying(uint256 amount) external {
+        LENDING_POOL.withdraw(address(UNDERLYING_TOKEN), amount, msg.sender); //NOTE Проверить так ли работает
 
-    function _deposit(address from, address to, uint amount, bool usePermit2) internal virtual override {
-        super._deposit(from, to, amount, usePermit2);
-
-        TOKEN.forceApprove(address(LENDING_POOL), amount);
-        LENDING_POOL.deposit(address(TOKEN), amount, address(this), refferal);
-
-        emit Transfer(address(this), address(LENDING_POOL), amount);
+        _withdraw(UNDERLYING_TOKEN, amount, msg.sender);
     }
 }

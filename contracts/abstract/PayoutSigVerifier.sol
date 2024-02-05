@@ -14,11 +14,33 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
         uint256 executionFee;
     }
 
+    //keccak256(
+    // "DepositSig("
+        // "Sig sig,"
+        // "uint256 amount"
+    // ")"
+    // "Sig("
+        // "address signer,"
+        // "uint256 nonce,"
+        // "uint256 executionFee"
+    // ")");
     struct DepositSig {
         Sig sig;
         uint256 amount;
     }
 
+    //keccak256(
+    // "PaymentSig("
+        // "Sig sig,"
+        // "address receiver,"
+        // "uint256 amount,"
+        // "bytes32 id"
+    // ")"
+    // "Sig("
+        // "address signer,"
+        // "uint256 nonce,"
+        // "uint256 executionFee"
+    // ")")
     struct PaymentSig {
         Sig sig;
         address receiver;
@@ -26,6 +48,18 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
         bytes32 id;
     }
 
+    //keccak256(
+    // "SubSig("
+        // "Sig sig,"
+        // "address author,"
+        // "uint96 maxRate,"
+        // "bytes32 id"
+    // ")"
+    // "Sig("
+        // "address signer,"
+        // "uint256 nonce,"
+        // "uint256 executionFee"
+    // ")");
     struct SubSig {
         Sig sig;
         address author;
@@ -33,6 +67,17 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
         bytes32 id;
     }
 
+    //keccak256(
+    // "UnSubSig("
+        // "Sig sig,"
+        // "address author,"
+        // "bytes32 id"
+    // ")"
+    // "Sig("
+        // "address signer,"
+        // "uint256 nonce,"
+        // "uint256 executionFee"
+    // ")");
     struct UnSubSig {
         Sig sig;
         address author;
@@ -45,11 +90,33 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
         uint16 protocolFee;
     }
 
+    //keccak256(
+    // "SettingsSig("
+        // "Sig sig,"
+        // "address user,"
+        // "Settings settings"
+    // ")"
+    // "Settings("
+        // "uint96 subscriptionRate,"
+        // "uint16 userFee,"
+        // "uint16 protocolFee,"
+    // ")"
+    // "Sig("
+        // "address signer,"
+        // "uint256 nonce,"
+        // "uint256 executionFee"
+    // ")");
     struct SettingsSig {
         Sig sig;
         address user;
         Settings settings;
     }
+
+    bytes32 private constant _PaymentSig = 0x45e2530d9b4b4107e164312ecbeec8bc5b2dd6807350344929778fb1a8dde05a;
+    bytes32 private constant _SettingsSig = 0x5d28c6d88e78f0b1c3c683cced71465011628afa85494e4b583128f2bd8325ca;
+    bytes32 private constant _SubSig = 0x090f2ae5ec3fb0200f375fb24c40cec5868bd062033c6a16d6c27b68f88b624e;
+    bytes32 private constant _UnSubSig = 0xad393dfe8522c7ebf48cc87f938e18127980fb505639ec7d21cd0ebe16032682;
+    bytes32 private constant _DepositSig = 0xe8d1c597a62d6e2ab3b9ea9b09215a043159e6e592d246bd34e13b334ab14ecd;
 
     string private constant SIGNING_DOMAIN = "PayoutSigVerifier";
     string private constant SIGNATURE_VERSION = "1";
@@ -78,19 +145,7 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
             _hashTypedDataV4(
                 keccak256(
                     abi.encode(
-                        keccak256(
-                            "PaymentSig("
-                                "Sig sig,"
-                                "address receiver,"
-                                "uint256 amount,"
-                                "bytes32 id"
-                            ")"
-                            "Sig("
-                                "address signer,"
-                                "uint256 nonce,"
-                                "uint256 executionFee"
-                            ")"
-                        ),
+                        _PaymentSig,
                         payment
                     )
                 )
@@ -102,23 +157,7 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
             _hashTypedDataV4(
                 keccak256(
                     abi.encode(
-                        keccak256(
-                            "SettingsSig("
-                                "Sig sig,"
-                                "address user,"
-                                "Settings settings"
-                            ")"
-                            "Settings("
-                                "uint96 subscriptionRate,"
-                                "uint16 userFee,"
-                                "uint16 protocolFee,"
-                            ")"
-                            "Sig("
-                                "address signer,"
-                                "uint256 nonce,"
-                                "uint256 executionFee"
-                            ")"
-                        ),
+                        _SettingsSig,
                         settingssig
                     )
                 )
@@ -129,19 +168,8 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
         return
             _hashTypedDataV4(
                 keccak256(
-                    abi.encode(keccak256(
-                            "SubSig("
-                                "Sig sig,"
-                                "address author,"
-                                "uint96 maxRate,"
-                                "bytes32 id"
-                            ")"
-                            "Sig("
-                                "address signer,"
-                                "uint256 nonce,"
-                                "uint256 executionFee"
-                            ")"
-                        ), 
+                    abi.encode(
+                        _SubSig,
                         subscription
                     )
                 )
@@ -151,18 +179,9 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
     function _hashUnSubscribe(UnSubSig calldata unsubscription) internal view returns (bytes32) {
         return
             _hashTypedDataV4(
-                keccak256(abi.encode(keccak256(
-                            "UnSubSig("
-                                "Sig sig,"
-                                "address author,"
-                                "bytes32 id"
-                            ")"
-                            "Sig("
-                                "address signer,"
-                                "uint256 nonce,"
-                                "uint256 executionFee"
-                            ")"
-                        ), 
+                keccak256(
+                    abi.encode(
+                        _UnSubSig,
                         unsubscription
                     )
                 )
@@ -172,17 +191,9 @@ abstract contract PayoutSigVerifier is EIP712, Ownable {
     function _hashDeposit(DepositSig calldata depositSig) internal view returns (bytes32) {
         return
             _hashTypedDataV4(
-                keccak256(abi.encode(keccak256(
-                            "DepositSig("
-                                "Sig sig,"
-                                "uint256 amount"
-                            ")"
-                            "Sig("
-                                "address signer,"
-                                "uint256 nonce,"
-                                "uint256 executionFee"
-                            ")"
-                        ), 
+                keccak256(
+                    abi.encode(
+                        _DepositSig,
                         depositSig
                     )
                 )
