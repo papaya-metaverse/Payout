@@ -2,6 +2,8 @@
 const hre = require('hardhat');
 const { getChainId } = hre;
 
+
+
 module.exports = async ({ getNamedAccounts, deployments }) => {
     console.log("running deploy payout script");
     console.log("network name: ", network.name);
@@ -42,3 +44,5 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
         })
     }
 };
+
+module.exports.tags = ['Payout'];

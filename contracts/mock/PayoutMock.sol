@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
-import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import {SafeERC20} from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
-import {SignedMath} from "@openzeppelin/contracts/utils/math/SignedMath.sol";
-
+import { SafeERC20, IERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
+import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import { PermitAndCall } from "@1inch/solidity-utils/contracts/PermitAndCall.sol";
+import { SignedMath } from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 import "../interfaces/IPayout.sol";
 import "../abstract/PayoutSigVerifier.sol";
 import "../library/UserLib.sol";
 
-contract PayoutMock is IPayout, PayoutSigVerifier {
+contract PayoutMock is IPayout, PayoutSigVerifier, PermitAndCall {
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -81,8 +81,6 @@ contract PayoutMock is IPayout, PayoutSigVerifier {
         } else {
             token.safeTransfer(protocolWallet, amount);
         }
-
-        token.safeTransfer(protocolWallet, amount);
     }
 
     function updateSettings(
@@ -97,31 +95,25 @@ contract PayoutMock is IPayout, PayoutSigVerifier {
         emit UpdateSettings(settings.user, settings.settings.userFee, settings.settings.protocolFee);
     }
 
-    function deposit(uint amount) external {
-        _deposit(msg.sender, msg.sender, amount, false);
+    function deposit(uint256 amount, bool isPermit2) external {
+        _deposit(TOKEN, msg.sender, msg.sender, amount, isPermit2);
     }
 
-    function depositFor(uint amount, address to) external {
-        _deposit(msg.sender, to, amount, false);
-    }
-
-    function depositWithPermit(bytes calldata permitData, uint amount) external {
-        TOKEN.tryPermit(permitData);
-        _deposit(msg.sender, msg.sender, amount, _isPermit2(permitData.length));
+    function depositFor(uint256 amount, address to, bool isPermit2) external {
+        _deposit(TOKEN, msg.sender, to, amount, isPermit2);
     }
 
     function depositBySig(
         DepositSig calldata depositsig,
-        bytes calldata rvs,  
-        bytes calldata permitData
+        bytes calldata rvs,
+        bool isPermit2
     ) external transferExecutionFee(
         depositsig.sig.signer, 
         msg.sender,
         depositsig.sig.executionFee
     ) {
         verifyDepositSig(depositsig, rvs);
-        TOKEN.tryPermit(depositsig.sig.signer, address(this), permitData);
-        _deposit(depositsig.sig.signer, depositsig.sig.signer, depositsig.amount, _isPermit2(permitData.length));
+        _deposit(TOKEN, depositsig.sig.signer, depositsig.sig.signer, depositsig.amount, isPermit2);
     }
 
     function changeSubscriptionRate(uint96 subscriptionRate) external {
@@ -199,13 +191,15 @@ contract PayoutMock is IPayout, PayoutSigVerifier {
         emit Transfer(payment.sig.signer, payment.receiver, payment.amount);
     }
 
-    function withdraw(uint256 amount) external virtual {
-        users[msg.sender].decreaseBalance(users[protocolWallet], amount, _liquidationThreshold(msg.sender));
+    function withdraw(uint256 amount) public {
+        _withdraw(TOKEN, amount, msg.sender);
+    }
+
+    function _withdraw(IERC20 token, uint256 amount, address from) internal {
+        users[from].decreaseBalance(users[protocolWallet], amount, _liquidationThreshold(from));
         totalBalance -= amount;
 
-        TOKEN.safeTransfer(msg.sender, amount);
-        
-        emit Transfer(address(this), msg.sender, amount);
+        token.safeTransfer(from, amount);
     }
 
     function liquidate(address account) external {
@@ -214,7 +208,7 @@ contract PayoutMock is IPayout, PayoutSigVerifier {
 
         EnumerableMap.AddressToUintMap storage user_subscriptions = _subscriptions[account];
         for (uint i = user_subscriptions.length(); i > 0; i--) {
-            (address author, uint subscriptionRate) = user_subscriptions.at(i - 1);
+            (address author, uint256 subscriptionRate) = user_subscriptions.at(i - 1);
 
             _unsubscribeEffects(account, author, uint96(subscriptionRate));
         }
@@ -223,18 +217,14 @@ contract PayoutMock is IPayout, PayoutSigVerifier {
         emit Liquidate(account, msg.sender);
     }
 
-    function _isPermit2(uint256 length) private pure returns (bool) {
-        return length == 96 || length == 352;
-    }
-
-    function _deposit(address from, address to, uint256 amount, bool usePermit2) internal virtual {
+    function _deposit(IERC20 token, address from, address to, uint256 amount, bool usePermit2) internal virtual {
         users[to].increaseBalance(amount);
         totalBalance += amount;
 
         if(usePermit2) {
-            TOKEN.safeTransferFromPermit2(from, address(this), amount);
+            token.safeTransferFromPermit2(from, address(this), amount);
         } else {
-            TOKEN.safeTransferFrom(from, address(this), amount);
+            token.safeTransferFrom(from, address(this), amount);
         }
 
         emit Deposit(to, amount);

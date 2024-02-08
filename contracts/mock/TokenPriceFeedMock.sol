@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity 0.8.24;
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
@@ -12,7 +12,7 @@ contract TokenPriceFeedMock is AggregatorV3Interface {
     }
 
     function description() external pure returns (string memory) {
-        return "AYA/USD";
+        return "TEST/USD";
     }
 
     function version() external view returns (uint256) {

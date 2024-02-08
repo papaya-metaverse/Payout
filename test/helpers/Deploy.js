@@ -1,3 +1,4 @@
+const { token } = require('@1inch/solidity-utils/dist/typechain-types/@openzeppelin/contracts')
 const hre = require('hardhat')
 const { ethers } = hre
 
@@ -76,6 +77,96 @@ async function baseSetup(
     return { token, payout }
 }
 
+async function deployAPayout(
+    admin,
+    protocolSigner,
+    protocolWalletAddr,
+    tokenAddress,
+    nativePriceFeedAddr,
+    tokenPriceFeedAddr,
+    lendingpool
+) {
+    const args = [
+        admin,
+        protocolSigner,
+        protocolWalletAddr,
+        nativePriceFeedAddr,
+        tokenPriceFeedAddr,
+        tokenAddress,
+        TOKEN_DECIMALS,
+        lendingpool
+    ]
+
+    const contract = await ethers.deployContract("APayoutMock", args)
+
+    return contract 
+}
+
+async function deployAToken(
+    lendingpool,
+    underlyingAsset
+) {
+    const name = "AToken_TEST"
+    const symbol = "AToken_TST"
+
+    const args = [
+        lendingpool,
+        underlyingAsset,
+        TOKEN_DECIMALS,
+        name,
+        symbol
+    ]
+
+    const contract = await ethers.deployContract("AToken", args)
+
+    return contract
+}
+
+async function deployLendingPool(
+    underlyingAsset
+) {
+    const liquidityIndex = 1
+    const aTokenAddress = ethers.ZeroAddress
+    const id = 0
+
+    const args = [
+        underlyingAsset,
+        liquidityIndex,
+        aTokenAddress,
+        id
+    ]
+
+    const contract = await ethers.deployContract("LendingPoolMock", args)
+
+    return contract
+}
+
+async function baseASetup(
+    protocolSigner,
+    protocolWalletAddr,
+) {
+    const token = await deployToken()
+    const coinPriceFeed = await deployNativePriceFeed()
+    const tokenPriceFeed = await deployTokenPriceFeed()
+
+    const lendingpool = await deployLendingPool(await token.getAddress())
+    const aToken = await deployAToken(await lendingpool.getAddress(), await token.getAddress())
+
+    await lendingpool.updateAToken(await token.getAddress(), await aToken.getAddress())
+
+    const aPayout = deployAPayout(
+        protocolWalletAddr,
+        protocolSigner,
+        protocolWalletAddr,
+        await aToken.getAddress(),
+        await coinPriceFeed.getAddress(),
+        await tokenPriceFeed.getAddress()
+    )
+
+    return { token, lendingpool, aToken, aPayout }
+}
+
 module.exports = {
-    baseSetup
+    baseSetup,
+    baseASetup
 }

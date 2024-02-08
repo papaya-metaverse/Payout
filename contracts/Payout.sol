@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
+import { SafeERC20, IERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import { SafeERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
 import { PermitAndCall } from "@1inch/solidity-utils/contracts/PermitAndCall.sol";
 import { SignedMath } from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
@@ -94,29 +94,29 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall {
 
         emit UpdateSettings(settings.user, settings.settings.userFee, settings.settings.protocolFee);
     }
-
-    function deposit(uint256 amount) external {
-        _deposit(TOKEN, msg.sender, msg.sender, amount, false);
+    //Что сейчас сделано, методы переделаны под возможность использовать PermitAndCall
+    //Чтобы это сделать, нужно просто вызывать методы через PermitAndCall
+    //Первым аргументом передается permitData, вторым надо зашивать вызов метода с его аргументами
+    //В принципе можно сделать, выглядит не архисложно
+    function deposit(uint256 amount, bool isPermit2) external {
+        _deposit(TOKEN, msg.sender, msg.sender, amount, isPermit2);
     }
 
-    function depositFor(uint256 amount, address to) external {
-        _deposit(TOKEN, msg.sender, to, amount, false);
-    }
-
-    function depositForWithPermit2(uint256 amount, address to) external {
-        _deposit(TOKEN, msg.sender, to, amount, true);
+    function depositFor(uint256 amount, address to, bool isPermit2) external {
+        _deposit(TOKEN, msg.sender, to, amount, isPermit2);
     }
 
     function depositBySig(
         DepositSig calldata depositsig,
-        bytes calldata rvs
+        bytes calldata rvs,
+        bool isPermit2
     ) external transferExecutionFee(
         depositsig.sig.signer, 
         msg.sender,
         depositsig.sig.executionFee
     ) {
         verifyDepositSig(depositsig, rvs);
-        _deposit(TOKEN, depositsig.sig.signer, depositsig.sig.signer, depositsig.amount, false);
+        _deposit(TOKEN, depositsig.sig.signer, depositsig.sig.signer, depositsig.amount, isPermit2);
     }
 
     function changeSubscriptionRate(uint96 subscriptionRate) external {

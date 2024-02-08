@@ -1,12 +1,10 @@
 const hre = require('hardhat')
 const { ethers } = hre
 const { expect, time, constants } = require('@1inch/solidity-utils')
-const { baseSetup } = require('./helpers/Deploy') 
+const { baseSetup } = require('./helpers/deploy') 
 const { signSettings, signPayment } = require('./helpers/signatureUtils')
 
 describe('Payout test', function () {
-    const ZERO_ADDRESS = constants.ZERO_ADDRESS
-    
     const DAY = 86400
     const FIVE_USDT = 5000000
     const SIX_USDT = 6000000
@@ -22,13 +20,6 @@ describe('Payout test', function () {
     before(async function () {
         [owner, signer, user_1, user_2] = await ethers.getSigners();
     })
-
-    async function timestamp() {
-        let blockNumber = await ethers.provider.getBlockNumber()
-        let block = await ethers.provider.getBlock(blockNumber) 
-
-        return block.timestamp
-    }
 
     describe('Tests', function () {
         it("Method: updateProtocolWallet", async function () {
@@ -69,7 +60,9 @@ describe('Payout test', function () {
             await token.transfer(user_1.address, SIX_USDT)
             await token.connect(user_1).approve(await payout.getAddress(), SIX_USDT)
 
-            await payout.connect(user_1).deposit(SIX_USDT)
+            await payout.connect(user_1).deposit(SIX_USDT, false)
+
+            expect((await payout.users(user_1.address)).balance).to.be.eq(SIX_USDT)
         })
         it("Method: changeSubscribeRate", async function () {
             const {token, payout} = await baseSetup(signer.address, owner.address)
@@ -86,7 +79,7 @@ describe('Payout test', function () {
             await token.transfer(user_1.address, SIX_USDT)
             await token.connect(user_1).approve(await payout.getAddress(), SIX_USDT)
 
-            await payout.connect(user_1).deposit(SIX_USDT)
+            await payout.connect(user_1).deposit(SIX_USDT, false)
             
             let nonce = await payout.nonces(user_1.address)
             let settingsData = {
@@ -124,7 +117,7 @@ describe('Payout test', function () {
             await token.transfer(user_1.address, SIX_USDT)
             await token.connect(user_1).approve(await payout.getAddress(), SIX_USDT)
 
-            await payout.connect(user_1).deposit(SIX_USDT)
+            await payout.connect(user_1).deposit(SIX_USDT, false)
             
             let nonce = await payout.nonces(user_1.address)
             let settingsData = {
@@ -173,7 +166,7 @@ describe('Payout test', function () {
             await token.transfer(user_1.address, SIX_USDT)
             await token.connect(user_1).approve(await payout.getAddress(), SIX_USDT)
 
-            await payout.connect(user_1).deposit(SIX_USDT)
+            await payout.connect(user_1).deposit(SIX_USDT, false)
 
             let nonce = await payout.nonces(user_1.address)
             let settingsData = {
@@ -218,6 +211,13 @@ describe('Payout test', function () {
             expect((await payout.users(user_1.address)).balance).to.be.eq(0)
             expect((await payout.users(user_2.address)).balance).to.be.eq(FIVE_USDT)
             expect((await payout.users(owner.address)).balance).to.be.eq(SIX_USDT - FIVE_USDT)
+        })
+        it("Method: permitAndCall", async function () {
+            //Значит в чем смысл, есть несколько моментов, не понятно как мне делать пермит, если его не было
+            //Чтобы сделать экшн, нужно первое: 0х + сигхэш, данные
+            //А вот чтобы закидывать пермит это интересно конечно.
+
+            //Что я понял на данный момент, эта история сработает только если есть пермит, если его нету, то надо вызывать методы нативно
         })
         it("Method: withdraw", async function () {
             const {token, payout} = await baseSetup(signer.address, owner.address)

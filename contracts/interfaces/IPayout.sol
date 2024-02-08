@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.19;
+pragma solidity 0.8.24;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
+import "../abstract/PayoutSigVerifier.sol";
 
 interface IPayout {
     event UpdateSettings(address indexed user, uint16 userFee, uint16 protocolFee);
@@ -20,10 +21,16 @@ interface IPayout {
     error ExcessOfRate();
     error ExcessOfSubscriptions();
 
-    function deposit(uint256 amount) external;
+    function deposit(uint256 amount, bool isPermit2) external;
 
-    function depositFor(uint256 amount, address user) external;
+    function depositFor(uint256 amount, address user, bool isPermit2) external;
 
+    function depositBySig(
+        PayoutSigVerifier.DepositSig calldata depositsig,
+        bytes calldata rvs,
+        bool isPermit2
+    ) external;
+    
     function changeSubscriptionRate(uint96 rate) external;
 
     function subscribe(address author, uint96 maxRate, bytes32 id) external;
