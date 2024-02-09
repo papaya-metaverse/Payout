@@ -225,7 +225,7 @@ describe('Payout test', function () {
             await token.transfer(user_1.address, SIX_USDT)
             await token.connect(user_1).approve(await payout.getAddress(), SIX_USDT)
 
-            await payout.connect(user_1).deposit(SIX_USDT)
+            await payout.connect(user_1).deposit(SIX_USDT, false)
 
             await payout.connect(user_1).withdraw(SIX_USDT)
 
@@ -237,7 +237,7 @@ describe('Payout test', function () {
             await token.transfer(user_1.address, ELEVEN_USDT)
             await token.connect(user_1).approve(await payout.getAddress(), ELEVEN_USDT)
 
-            await payout.connect(user_1).deposit(ELEVEN_USDT)
+            await payout.connect(user_1).deposit(ELEVEN_USDT, false)
             
             let nonce = await payout.nonces(user_1.address)
             let settingsData = {

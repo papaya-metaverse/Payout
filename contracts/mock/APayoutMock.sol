@@ -9,7 +9,7 @@ interface IAToken {
     function UNDERLYING_ASSET_ADDRESS() external view returns (IERC20);
 }
 
-contract APayout is PayoutMock {
+contract APayoutMock is PayoutMock {
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
 
@@ -63,9 +63,8 @@ contract APayout is PayoutMock {
         );
     }
 
-    //NOTE Поиграться с трансферами, можно попробовать сделать все в один заход
     function withdrawUnderlying(uint256 amount) external {
-        LENDING_POOL.withdraw(address(UNDERLYING_TOKEN), amount, msg.sender); //NOTE Проверить так ли работает
+        LENDING_POOL.withdraw(address(UNDERLYING_TOKEN), amount, address(this));
 
         _withdraw(UNDERLYING_TOKEN, amount, msg.sender);
     }

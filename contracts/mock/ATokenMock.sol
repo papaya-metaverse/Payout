@@ -5,11 +5,9 @@ import { TokenCustomDecimalsMock } from "@1inch/solidity-utils/contracts/mocks/T
 
 import { SafeERC20, IERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
 import { ILendingPool } from "../interfaces/ILendingPool.sol";
-import { WadRayMath } from "./library/WadRayMath.sol";
 import { IAToken } from "./interfaces/IAToken.sol";
 
 contract ATokenMock is IAToken, TokenCustomDecimalsMock {
-  using WadRayMath for uint256;
   using SafeERC20 for IERC20;
 
   ILendingPool internal _pool;
@@ -65,10 +63,10 @@ contract ATokenMock is IAToken, TokenCustomDecimalsMock {
     uint256 amount,
     uint256 index
   ) external override onlyLendingPool returns (bool) {
-    uint256 previousBalance = super.balanceOf(user);
+    uint256 previousBalance = super.balanceOf(user); 
+    //NOTE Need to check this method more carefully
 
-    uint256 amountScaled = amount.rayDiv(index);
-    require(amountScaled != 0, "CT_INVALID_MINT_AMOUNT");
+    uint256 amountScaled = amount;
     _mint(user, amountScaled);
 
     return previousBalance == 0;

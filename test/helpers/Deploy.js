@@ -1,4 +1,3 @@
-const { token } = require('@1inch/solidity-utils/dist/typechain-types/@openzeppelin/contracts')
 const hre = require('hardhat')
 const { ethers } = hre
 
@@ -117,7 +116,7 @@ async function deployAToken(
         symbol
     ]
 
-    const contract = await ethers.deployContract("AToken", args)
+    const contract = await ethers.deployContract("ATokenMock", args)
 
     return contract
 }
@@ -149,18 +148,19 @@ async function baseASetup(
     const coinPriceFeed = await deployNativePriceFeed()
     const tokenPriceFeed = await deployTokenPriceFeed()
 
-    const lendingpool = await deployLendingPool(await token.getAddress())
+    const lendingpool = await deployLendingPool(await token.getAddress())    
     const aToken = await deployAToken(await lendingpool.getAddress(), await token.getAddress())
 
     await lendingpool.updateAToken(await token.getAddress(), await aToken.getAddress())
 
-    const aPayout = deployAPayout(
+    const aPayout = await deployAPayout(
         protocolWalletAddr,
         protocolSigner,
         protocolWalletAddr,
         await aToken.getAddress(),
         await coinPriceFeed.getAddress(),
-        await tokenPriceFeed.getAddress()
+        await tokenPriceFeed.getAddress(),
+        await lendingpool.getAddress()
     )
 
     return { token, lendingpool, aToken, aPayout }

@@ -195,11 +195,11 @@ contract PayoutMock is IPayout, PayoutSigVerifier, PermitAndCall {
         _withdraw(TOKEN, amount, msg.sender);
     }
 
-    function _withdraw(IERC20 token, uint256 amount, address from) internal {
-        users[from].decreaseBalance(users[protocolWallet], amount, _liquidationThreshold(from));
+    function _withdraw(IERC20 token, uint256 amount, address to) internal {
+        users[to].decreaseBalance(users[protocolWallet], amount, _liquidationThreshold(to));
         totalBalance -= amount;
 
-        token.safeTransfer(from, amount);
+        token.safeTransfer(to, amount);
     }
 
     function liquidate(address account) external {

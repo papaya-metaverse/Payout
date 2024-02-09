@@ -5,22 +5,22 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20, IERC20} from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
 import {IAToken} from "./interfaces/IAToken.sol";
 import {ILendingPool} from "../interfaces/ILendingPool.sol";
-import {WadRayMath} from "./library/WadRayMath.sol";
 import {DataTypes} from "./library/DataTypes.sol";
+
+import "hardhat/console.sol";
 
 contract LendingPoolMock is ILendingPool {
     using Math for uint256;
-    using WadRayMath for uint256;
     using SafeERC20 for IERC20;
 
-    mapping(address => DataTypes.ReserveData) internal _reserves;
+    mapping(address => DataTypes.ReserveData) public reserves;
 
     constructor(address underlyingAsset, uint128 liquidityIndex, address aTokenAddress, uint8 id) {
-        _reserves[underlyingAsset] = DataTypes.ReserveData(liquidityIndex, aTokenAddress, id);
+        reserves[underlyingAsset] = DataTypes.ReserveData(liquidityIndex, aTokenAddress, id);
     }
 
     function updateAToken(address underlyingAsset, address _AToken) external {
-        _reserves[underlyingAsset].aTokenAddress = _AToken;
+        reserves[underlyingAsset].aTokenAddress = _AToken;
     }
 
     /**
@@ -40,7 +40,7 @@ contract LendingPoolMock is ILendingPool {
         address onBehalfOf,
         uint16 referralCode
     ) external override {
-        DataTypes.ReserveData storage reserve = _reserves[asset];
+        DataTypes.ReserveData storage reserve = reserves[asset];
 
         address aToken = reserve.aTokenAddress;
         referralCode;
@@ -66,7 +66,7 @@ contract LendingPoolMock is ILendingPool {
         uint256 amount,
         address to
     ) external override returns (uint256) {
-        DataTypes.ReserveData storage reserve = _reserves[asset];
+        DataTypes.ReserveData storage reserve = reserves[asset];
 
         address aToken = reserve.aTokenAddress;
 
