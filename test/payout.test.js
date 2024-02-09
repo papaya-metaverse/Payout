@@ -226,12 +226,23 @@ describe('Payout test', function () {
                 deadline: DEADLINE
             }
 
-            //deposit(uint256 amount, bool isPermit2) sigHash: 9a408321
-            const depositSigHash = 0x9a408321
             let signature = await signPermit(CHAIN_ID, await token.getAddress(), permitData, owner)
+
+            //deposit(uint256,bool) sigHash: 9a408321
+            const depositSigHash = '9a408321'
+            const depositSignature = 'deposit(uint256,bool)'
+            const depositSignature2 = 'deposit(uint256 amount,bool isPermit2'
+            // let args = ethers.solidityPacked(
+            //     ['bytes4', 'uint256', 'bool'],
+            //     [`0x${depositSigHash}`, SIX_USDT, true]
+            // )
+            // let args = ethers.solidityPacked(
+            //     ['string', 'uint256', 'bool'],
+            //     [depositSignature, SIX_USDT, true]
+            // )
             let args = ethers.solidityPacked(
-                ['bytes', 'uint256', 'bool'],
-                [`0x${depositSigHash}`, SIX_USDT, true]
+                ['string', 'uint256', 'bool'],
+                [depositSignature2, SIX_USDT, true]
             )
 
             // await payout.permitAndCall(signature, args)
