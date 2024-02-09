@@ -74,6 +74,16 @@ DepositTypes = {
   ]
 }
 
+PermitTypes = {
+  PermitSig: [
+    { name: 'owner', type: 'address' },
+    { name: 'spender', type: 'address' },
+    { name: 'value', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
+    { name: 'deadline', type: 'uint256' },
+  ]
+}
+
 function buildData (chainId_, verifyingContract_, types, data){
   const domain = {
     name: SIGNING_DOMAIN_NAME,
@@ -87,6 +97,11 @@ function buildData (chainId_, verifyingContract_, types, data){
     types: types,
     value: data
   }
+}
+
+async function signPermit (chainId, target, permitData, wallet) {
+  const data = buildData(chainId, target, PermitTypes, permitData)
+  return await wallet.signTypedData(data.domain, data.types, data.value)
 }
 
 async function signSettings (chainId, target, settingsData, wallet) {
@@ -120,5 +135,6 @@ module.exports = {
   signPayment,
   signSubscribe,
   signUnSubscribe,
-  signDeposit
+  signDeposit,
+  signPermit
 }

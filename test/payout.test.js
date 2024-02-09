@@ -2,7 +2,7 @@ const hre = require('hardhat')
 const { ethers } = hre
 const { expect, time, constants } = require('@1inch/solidity-utils')
 const { baseSetup } = require('./helpers/deploy') 
-const { signSettings, signPayment } = require('./helpers/signatureUtils')
+const { signSettings, signPayment, signPermit } = require('./helpers/signatureUtils')
 
 describe('Payout test', function () {
     const DAY = 86400
@@ -11,6 +11,7 @@ describe('Payout test', function () {
     const ELEVEN_USDT = FIVE_USDT + SIX_USDT
     const SUB_RATE = 58
     const CHAIN_ID = 31337
+    const DEADLINE = '18446744073709551615';
     
     const USER_FEE = 8000
     const PROTOCOL_FEE = 2000
@@ -212,12 +213,28 @@ describe('Payout test', function () {
             expect((await payout.users(user_2.address)).balance).to.be.eq(FIVE_USDT)
             expect((await payout.users(owner.address)).balance).to.be.eq(SIX_USDT - FIVE_USDT)
         })
-        it("Method: permitAndCall", async function () {
-            //Значит в чем смысл, есть несколько моментов, не понятно как мне делать пермит, если его не было
-            //Чтобы сделать экшн, нужно первое: 0х + сигхэш, данные
-            //А вот чтобы закидывать пермит это интересно конечно.
+        it("Method: permitAndCall to deposit", async function () {
+            const {token, payout} = await baseSetup(signer.address, owner.address)
 
-            //Что я понял на данный момент, эта история сработает только если есть пермит, если его нету, то надо вызывать методы нативно
+            let nonce = await token.nonces(owner.address)
+
+            const permitData = {
+                owner: owner.address,
+                spender: await payout.getAddress(),
+                value: SIX_USDT,
+                nonce: nonce,
+                deadline: DEADLINE
+            }
+
+            //deposit(uint256 amount, bool isPermit2) sigHash: 9a408321
+            const depositSigHash = 0x9a408321
+            let signature = await signPermit(CHAIN_ID, await token.getAddress(), permitData, owner)
+            let args = ethers.solidityPacked(
+                ['bytes', 'uint256', 'bool'],
+                [`0x${depositSigHash}`, SIX_USDT, true]
+            )
+
+            // await payout.permitAndCall(signature, args)
         })
         it("Method: withdraw", async function () {
             const {token, payout} = await baseSetup(signer.address, owner.address)
