@@ -94,10 +94,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall {
 
         emit UpdateSettings(settings.user, settings.settings.userFee, settings.settings.protocolFee);
     }
-    //Что сейчас сделано, методы переделаны под возможность использовать PermitAndCall
-    //Чтобы это сделать, нужно просто вызывать методы через PermitAndCall
-    //Первым аргументом передается permitData, вторым надо зашивать вызов метода с его аргументами
-    //В принципе можно сделать, выглядит не архисложно
+
     function deposit(uint256 amount, bool isPermit2) external {
         _deposit(TOKEN, msg.sender, msg.sender, amount, isPermit2);
     }
