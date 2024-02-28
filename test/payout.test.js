@@ -1,9 +1,9 @@
 const hre = require('hardhat')
 const { ethers } = hre
 const { expect, time, constants } = require('@1inch/solidity-utils')
+const { getPermit } = require('@1inch/solidity-utils')
 const { baseSetup } = require('./helpers/deploy') 
 const { signSettings, signPayment, signDeposit } = require('./helpers/signatureUtils')
-const { getPermit } = require('./helpers/eip712')
 
 async function timestamp() {
     let blockNumber = await ethers.provider.getBlockNumber()
@@ -69,6 +69,28 @@ describe('Payout test', function () {
             await token.connect(user_1).approve(await payout.getAddress(), SIX_USDT)
 
             await payout.connect(user_1).deposit(SIX_USDT, false)
+
+            expect((await payout.users(user_1.address)).balance).to.be.eq(SIX_USDT)
+        })
+        it("Method: depositBySig:", async function () {
+            const {token, payout} = await baseSetup(signer.address, owner.address)
+
+            await token.transfer(user_1.address, SIX_USDT)
+            await token.connect(user_1).approve(await payout.getAddress(), SIX_USDT)
+
+            let nonce = await payout.nonces(user_1.address)
+            let depositData = {
+                sig: {
+                    signer: user_1.address,
+                    nonce: nonce,
+                    executionFee: 0
+                },
+                amount: SIX_USDT
+            }
+
+            let signature = signDeposit(CHAIN_ID, await payout.getAddress(), depositData, user_1)
+
+            await payout.depositBySig(depositData, signature, false)
 
             expect((await payout.users(user_1.address)).balance).to.be.eq(SIX_USDT)
         })
@@ -220,91 +242,88 @@ describe('Payout test', function () {
             expect((await payout.users(user_2.address)).balance).to.be.eq(FIVE_USDT)
             expect((await payout.users(owner.address)).balance).to.be.eq(SIX_USDT - FIVE_USDT)
         })
-        // it("Method: permitAndCall then deposit", async function () {
-        //     const {token, payout} = await baseSetup(signer.address, owner.address)
+        it("Method: permitAndCall then deposit", async function () {
+            const {token, payout} = await baseSetup(signer.address, owner.address)
 
-        //     let nonce = await token.nonces(owner.address)
+            const permit = await getPermit(
+                owner,
+                token,
+                '1',
+                CHAIN_ID,
+                await payout.getAddress(),
+                SIX_USDT,
+                await timestamp() + 100
+            )
 
-        //     const permitData = {
-        //         owner: owner.address,
-        //         spender: await payout.getAddress(),
-        //         value: SIX_USDT,
-        //         nonce: nonce,
-        //         deadline: await timestamp() + 100
-        //     }
+            await payout.permitAndCall(
+                ethers.solidityPacked(
+                    ['address', 'bytes'],
+                    [await token.getAddress(), permit]
+                ),
+                payout.interface.encodeFunctionData('deposit', [
+                    SIX_USDT, false
+                ])
+            )
+        })
+        it("Method: permitAndCall then depositFor", async function () {
+            const {token, payout} = await baseSetup(signer.address, owner.address)
 
-        //     const permit = await getPermit(CHAIN_ID, token, permitData, owner)
+            const permit = await getPermit(
+                owner,
+                token,
+                '1',
+                CHAIN_ID,
+                await payout.getAddress(),
+                SIX_USDT,
+                await timestamp() + 100
+            )
 
-        //     await payout.permitAndCall(
-        //         ethers.solidityPacked(
-        //             ['address', 'bytes'],
-        //             [await token.getAddress(), permit]
-        //         ),
-        //         payout.interface.encodeFunctionData('deposit', [
-        //             SIX_USDT, true
-        //         ])
-        //     )
-        // })
-        // it("Method: permitAndCall then depositFor", async function () {
-        //     const {token, payout} = await baseSetup(signer.address, owner.address)
+            await payout.permitAndCall(
+                ethers.solidityPacked(
+                    ['address', 'bytes'],
+                    [await token.getAddress(), permit]
+                ),
+                payout.interface.encodeFunctionData('depositFor', [
+                    SIX_USDT, user_1.address, false
+                ])
+            )
+        })
+        it("Method: permitAndCall then depositBySig", async function () {
+            const {token, payout} = await baseSetup(signer.address, owner.address)
 
-        //     let nonce = await token.nonces(owner.address)
+            const permit = await getPermit(
+                owner,
+                token,
+                '1',
+                CHAIN_ID,
+                await payout.getAddress(),
+                SIX_USDT,
+                await timestamp() + 100
+            )
 
-        //     const permitData = {
-        //         owner: owner.address,
-        //         spender: await payout.getAddress(),
-        //         value: SIX_USDT,
-        //         nonce: nonce,
-        //         deadline: await timestamp() + 100
-        //     }
+            let nonce = await payout.nonces(owner.address)
 
-        //     const permit = await getPermit(CHAIN_ID, token, permitData, owner)
+            const depositData = {
+                sig: {
+                    signer: owner.address,
+                    nonce: nonce,
+                    executionFee: 0,
+                },
+                amount: SIX_USDT
+            }
+            
+            const deposit = await signDeposit(CHAIN_ID, await payout.getAddress(), depositData, owner)
 
-        //     await payout.permitAndCall(
-        //         ethers.solidityPacked(
-        //             ['address', 'bytes'],
-        //             [await token.getAddress(), permit]
-        //         ),
-        //         payout.interface.encodeFunctionData('depositFor', [
-        //             SIX_USDT, user_1.address, true
-        //         ])
-        //     )
-        // })
-        // it("Method: permitAndCall then depositBySig", async function () {
-        //     const {token, payout} = await baseSetup(signer.address, owner.address)
-
-        //     let nonce = await token.nonces(owner.address)
-
-        //     const permitData = {
-        //         owner: owner.address,
-        //         spender: await payout.getAddress(),
-        //         value: SIX_USDT,
-        //         nonce: nonce,
-        //         deadline: await timestamp() + 100
-        //     }
-
-        //     nonce = await payout.nonces(owner.address)
-
-        //     const depositData = {
-        //         signer: owner.address,
-        //         nonce: nonce,
-        //         executionFee: 0,
-        //         amount: SIX_USDT
-        //     }
-
-        //     const permit = await getPermit(CHAIN_ID, token, permitData, owner)
-        //     const deposit = await signDeposit(CHAIN_ID, payout, depositData, owner)
-
-        //     await payout.permitAndCall(
-        //         ethers.solidityPacked(
-        //             ['address', 'bytes'],
-        //             [await token.getAddress(), permit]
-        //         ),
-        //         payout.interface.encodeFunctionData('depositBySig', [
-        //             depositData, deposit, true
-        //         ])
-        //     )
-        // })
+            await payout.permitAndCall(
+                ethers.solidityPacked(
+                    ['address', 'bytes'],
+                    [await token.getAddress(), permit]
+                ),
+                payout.interface.encodeFunctionData('depositBySig', [
+                    depositData, deposit, false
+                ])
+            )
+        })
         it("Method: withdraw", async function () {
             const {token, payout} = await baseSetup(signer.address, owner.address)
 
