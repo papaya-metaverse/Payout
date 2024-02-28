@@ -3,7 +3,7 @@ require('@nomicfoundation/hardhat-chai-matchers');
 require("hardhat-contract-sizer");
 require('hardhat-dependency-compiler');
 require('hardhat-deploy');
-require('hardhat-gas-reporter');
+// require('hardhat-gas-reporter');
 require('hardhat-tracer');
 require('dotenv').config();
 
