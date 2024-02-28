@@ -1,8 +1,7 @@
 const hre = require('hardhat')
 const { ethers } = hre
-const { expect, time, constants } = require('@1inch/solidity-utils')
-const { getPermit } = require('@1inch/solidity-utils')
-const { baseSetup } = require('./helpers/deploy') 
+const { expect, time, getPermit, constants } = require('@1inch/solidity-utils')
+const { baseSetup } = require('./helpers/Deploy') 
 const { signSettings, signPayment, signDeposit } = require('./helpers/signatureUtils')
 
 async function timestamp() {
