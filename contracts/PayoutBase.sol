@@ -7,11 +7,11 @@ import { PermitAndCall } from "@1inch/solidity-utils/contracts/PermitAndCall.sol
 import { SignedMath } from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
-import "./interfaces/IPayout.sol";
-import "./abstract/PayoutSigVerifier.sol";
+import "./interfaces/IPayoutBase.sol";
+import "./abstract/PayoutSigVerifierBase.sol";
 import "./library/UserLib.sol";
 
-contract Payout is IPayout, PayoutSigVerifier, PermitAndCall {
+contract PayoutBase is IPayoutBase, PayoutSigVerifierBase, PermitAndCall {
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -57,7 +57,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall {
         address TOKEN_PRICE_FEED_,
         address TOKEN_,
         uint8 TOKEN_DECIMALS_
-    ) PayoutSigVerifier(protocolSigner_, admin) {
+    ) PayoutSigVerifierBase(protocolSigner_, admin) {
         COIN_PRICE_FEED = AggregatorV3Interface(CHAIN_PRICE_FEED_);
         TOKEN_PRICE_FEED = AggregatorV3Interface(TOKEN_PRICE_FEED_);
         TOKEN = IERC20(TOKEN_);
@@ -103,23 +103,6 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall {
         _deposit(TOKEN, msg.sender, msg.sender, amount, isPermit2);
     }
 
-    function depositFor(uint256 amount, address to, bool isPermit2) external {
-        _deposit(TOKEN, msg.sender, to, amount, isPermit2);
-    }
-
-    function depositBySig(
-        DepositSig calldata depositsig,
-        bytes calldata rvs,
-        bool isPermit2
-    ) external transferExecutionFee(
-        depositsig.sig.signer, 
-        msg.sender,
-        depositsig.sig.executionFee
-    ) {
-        verifyDepositSig(depositsig, rvs);
-        _deposit(TOKEN, depositsig.sig.signer, depositsig.sig.signer, depositsig.amount, isPermit2);
-    }
-
     function withdraw(uint256 amount) public {
         _withdraw(TOKEN, amount, msg.sender);
     }
@@ -136,41 +119,11 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall {
         emit Subscribe(msg.sender, author, id);
     }
 
-    function subscribeBySig(
-        SubSig calldata subscribeSig, 
-        bytes memory rvs
-    ) external transferExecutionFee( 
-        subscribeSig.sig.signer,
-        msg.sender, 
-        subscribeSig.sig.executionFee
-    ) {
-        verifySubscribe(subscribeSig, rvs);
-        _subscribeChecksAndEffects(subscribeSig.sig.signer, subscribeSig.author, subscribeSig.maxRate);
-
-        emit Subscribe(subscribeSig.sig.signer, subscribeSig.author, subscribeSig.id);
-    }
-
     function unsubscribe(address author, bytes32 id) external {
         uint actualRate = _unsubscribeChecks(msg.sender, author);
         _unsubscribeEffects(msg.sender, author, uint96(actualRate));
 
         emit Unsubscribe(msg.sender, author, id);
-    }
-
-    function unsubscribeBySig(
-        UnSubSig calldata unsubscribeSig, 
-        bytes memory rvs
-    ) external transferExecutionFee(
-        unsubscribeSig.sig.signer, 
-        msg.sender, 
-        unsubscribeSig.sig.executionFee
-    ) {
-        verifyUnsubscribe(unsubscribeSig, rvs);
-
-        uint actualRate = _unsubscribeChecks(unsubscribeSig.sig.signer, unsubscribeSig.author);
-        _unsubscribeEffects(unsubscribeSig.sig.signer, unsubscribeSig.author, uint96(actualRate));
-
-        emit Unsubscribe(unsubscribeSig.sig.signer, unsubscribeSig.author, unsubscribeSig.id);
     }
 
     function payBySig(
