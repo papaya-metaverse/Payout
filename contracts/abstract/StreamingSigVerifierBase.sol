@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-abstract contract PayoutSigVerifierBase is EIP712, Ownable {
+abstract contract StreamingSigVerifierBase is EIP712, Ownable {
     error InvalidNonce();
 
     struct Sig {

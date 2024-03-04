@@ -2,9 +2,9 @@
 pragma solidity 0.8.24;
 
 import { IERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
-import "../abstract/PayoutSigVerifierBase.sol";
+import "../abstract/StreamingSigVerifierBase.sol";
 
-interface IPayoutBase {
+interface IStreamingBase {
     event UpdateSettings(address indexed user, uint16 userFee, uint16 protocolFee);
     event Deposit(address indexed user, uint256 amount);
     event ChangeSubscriptionRate(address indexed user, uint96 rate);
@@ -27,11 +27,11 @@ interface IPayoutBase {
 
     function balanceOf(address account) external returns (uint);
     
-    function updateSettings(PayoutSigVerifierBase.SettingsSig calldata settings, bytes memory rvs) external;
+    function updateSettings(StreamingSigVerifierBase.SettingsSig calldata settings, bytes memory rvs) external;
     
     function deposit(uint256 amount, bool isPermit2) external;
     
-    function payBySig(PayoutSigVerifierBase.PaymentSig calldata payment, bytes memory rvs) external;
+    function payBySig(StreamingSigVerifierBase.PaymentSig calldata payment, bytes memory rvs) external;
     
     function withdraw(uint256 amount) external;
     

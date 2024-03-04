@@ -7,11 +7,11 @@ import { PermitAndCall } from "@1inch/solidity-utils/contracts/PermitAndCall.sol
 import { SignedMath } from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
-import "./interfaces/IPayoutBase.sol";
-import "./abstract/PayoutSigVerifierBase.sol";
-import "./library/UserLib.sol";
+import "./interfaces/IStreamingBase.sol";
+import "./abstract/StreamingSigVerifierBase.sol";
+import "./library/StreamingLibBase.sol";
 
-contract PayoutBase is IPayoutBase, PayoutSigVerifierBase, PermitAndCall {
+contract StreamingBase is IStreamingBase, StreamingSigVerifierBase, PermitAndCall {
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
