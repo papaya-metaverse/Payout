@@ -32,7 +32,8 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall {
 
     address public protocolWallet;
     uint256 public totalBalance;
-
+    //NOTE Попробовать сделать по аналогии с permitAndCall
+    //Условно чтобы вышло payAndCall
     modifier transferExecutionFee(
         address spender, 
         address receiver,

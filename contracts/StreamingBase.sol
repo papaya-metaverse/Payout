@@ -32,7 +32,8 @@ contract StreamingBase is IStreamingBase, StreamingSigVerifierBase, PermitAndCal
 
     address public protocolWallet;
     uint256 public totalBalance;
-
+    //Попробовать сделать по аналогии с permitAndCall
+    //Условно чтобы вышло payAndCall
     modifier transferExecutionFee(
         address spender, 
         address receiver,
