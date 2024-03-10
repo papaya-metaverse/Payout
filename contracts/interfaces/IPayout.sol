@@ -5,7 +5,7 @@ import { IERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol"
 import "../abstract/PayoutSigVerifier.sol";
 
 interface IPayout {
-    event UpdateSettings(address indexed user, uint16 userFee, uint16 protocolFee);
+    event SetDefaultSettings(address indexed user, uint16 userFee, uint16 protocolFee);
     event Deposit(address indexed user, uint256 amount);
     event ChangeSubscriptionRate(address indexed user, uint96 rate);
     event Subscribe(address indexed user, address indexed author, bytes32 indexed id);
@@ -44,6 +44,11 @@ interface IPayout {
     function balanceOf(address account) external returns (uint);
 
     function rescueFunds(IERC20 token_, uint256 amount) external;
+
+    function setDefaultSettings(
+        PayoutSigVerifier.Settings calldata settings, 
+        bytes32 projectId
+    ) external;
 
     function updateProtocolWallet(address newWallet_) external;
 }

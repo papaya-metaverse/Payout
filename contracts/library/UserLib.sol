@@ -13,11 +13,20 @@ library UserLib {
 
     uint16 public constant FLOOR = 10000;
 
+    struct ProjectInfo {
+        address admin;
+        address protocolWallet;
+        bytes32 defaultAdminRole;
+
+        PayoutSigVerifier.Settings settings;
+    }
+
     struct User {
         int256 balance;
         uint256 incomeRate; // changes to this field requires _syncBalance() call
         uint256 outgoingRate; // changes to this field requires _syncBalance() call
         uint40 updTimestamp;
+    
         PayoutSigVerifier.Settings settings;
     }
 
