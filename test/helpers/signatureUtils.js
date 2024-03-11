@@ -12,7 +12,7 @@ SettingsTypes = {
   Settings: [
     {name: 'subscriptionRate', type: 'uint96'},
     {name: 'userFee', type: 'uint16'},
-    {name: 'protocolFee', type: 'uint16'}
+    {name: 'projectFee', type: 'uint16'}
   ],
   Sig: [
     {name: 'signer', type: 'address'},

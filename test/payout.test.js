@@ -49,7 +49,7 @@ describe('Payout test', function () {
                 settings: {
                     subscriptionRate: SUB_RATE,
                     userFee: USER_FEE,
-                    protocolFee: PROTOCOL_FEE
+                    projectFee: PROTOCOL_FEE
                 }
             };
 
@@ -59,7 +59,7 @@ describe('Payout test', function () {
 
             expect((await payout.users(user_1.address)).settings.subscriptionRate).to.be.eq(SUB_RATE)
             expect((await payout.users(user_1.address)).settings.userFee).to.be.eq(USER_FEE)
-            expect((await payout.users(user_1.address)).settings.protocolFee).to.be.eq(PROTOCOL_FEE)
+            expect((await payout.users(user_1.address)).settings.projectFee).to.be.eq(PROTOCOL_FEE)
         })
         it("Method: deposit", async function () {
             const {token, payout} = await baseSetup(signer.address, owner.address)
@@ -121,7 +121,7 @@ describe('Payout test', function () {
                 settings: {
                     subscriptionRate: SUB_RATE,
                     userFee: USER_FEE,
-                    protocolFee: PROTOCOL_FEE
+                    projectFee: PROTOCOL_FEE
                 }
             };
 
@@ -159,7 +159,7 @@ describe('Payout test', function () {
                 settings: {
                     subscriptionRate: SUB_RATE,
                     userFee: USER_FEE,
-                    protocolFee: PROTOCOL_FEE
+                    projectFee: PROTOCOL_FEE
                 }
             };
 
@@ -208,7 +208,7 @@ describe('Payout test', function () {
                 settings: {
                     subscriptionRate: SUB_RATE,
                     userFee: USER_FEE,
-                    protocolFee: PROTOCOL_FEE
+                    projectFee: PROTOCOL_FEE
                 }
             };
 
@@ -354,7 +354,7 @@ describe('Payout test', function () {
                 settings: {
                     subscriptionRate: SUB_RATE,
                     userFee: USER_FEE,
-                    protocolFee: PROTOCOL_FEE
+                    projectFee: PROTOCOL_FEE
                 }
             };
 
