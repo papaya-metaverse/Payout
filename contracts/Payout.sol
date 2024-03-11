@@ -31,8 +31,13 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, AccessControl {
     mapping(bytes32 projectId => mapping(address account => UserLib.User)) public users;
     mapping(bytes32 projectId => mapping(address account => EnumerableMap.AddressToUintMap)) private _subscriptions;
 
-    mapping(bytes32 projectId => UserLib.ProjectInfo) public projectInfo;
+    mapping(bytes32 projectId => mapping(address account => UserLib.User)) public projectAdmin;
     mapping(bytes32 projectId => uint256 balance) public projectTotalBalance;
+
+    modifier checkProject(bytes32 projectId) {
+        require(projectInfo[projectId].defaultAdminRole != 0x0, "Project not exists");
+        _;
+    }
 
     //Переделки
     modifier transferExecutionFee(
@@ -67,15 +72,15 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, AccessControl {
     function updateProtocolWallet(
         address protocolWallet_, 
         bytes32 projectId
-    ) external onlyRole(projectInfo[projectId].defaultAdminRole) {
+    ) external onlyRole(projectId) {
         projectInfo[projectId].protocolWallet = protocolWallet_;
     }
-
+    //Добавить общего админа
     function rescueFunds(
         IERC20 token, 
         uint256 amount, 
         bytes32 projectId
-    ) external onlyRole(projectInfo[projectId].defaultAdminRole) {
+    ) external onlyRole(projectId) {
         if (
             token == TOKEN && 
             amount > TOKEN.balanceOf(address(this)) - projectTotalBalance[projectId]
@@ -98,30 +103,25 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, AccessControl {
         Settings calldata settings, 
         bytes32 projectId
     ) external {
-        bytes32 PROJECT_ADMIN_ROLE = keccak256(DEFAULT_ADMIN_ROLE, projectId);
-
-        if(projectInfo[projectId].admin == address(0)) {
-            projectInfo[projectId].admin = msg.sender;
-            projectInfo[projectId].defaultAdminRole = PROJECT_ADMIN_ROLE;
-
-            _grantRole(PROJECT_ADMIN_ROLE, msg.sender);
+        if(!hasRole(projectId, msg.sender)) {
+            _grantRole(projectId, msg.sender);
         }
 
-        _checkRole(PROJECT_ADMIN_ROLE, msg.sender);
+        _checkRole(projectId, msg.sender);
 
         if (settings.settings.protocolFee >= settings.settings.userFee) revert WrongPercent();
         if (settings.settings.protocolFee + settings.settings.userFee != UserLib.FLOOR) revert WrongPercent();
         
-        projectInfo[projectId].settings = settings.settings;
+        projectAdmin[projectId][msg.sender].setSettings(settings.settings, msg.sender);
 
         emit SetDefaultSettings(settings.user, settings.settings.userFee, settings.settings.protocolFee);
     }
 
-    function deposit(uint256 amount, bool isPermit2, bytes32 projectId) external {
+    function deposit(uint256 amount, bool isPermit2, bytes32 projectId) external checkProject(projectId) {
         _deposit(TOKEN, msg.sender, msg.sender, amount, isPermit2);
     }
 
-    function depositFor(uint256 amount, address to, bool isPermit2, bytes32 projectId) external {
+    function depositFor(uint256 amount, address to, bool isPermit2, bytes32 projectId) external checkProject(projectId) {
         _deposit(TOKEN, msg.sender, to, amount, isPermit2);
     }
 
@@ -130,7 +130,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, AccessControl {
         bytes calldata rvs,
         bool isPermit2,
         bytes32 projectId
-    ) external transferExecutionFee(
+    ) external checkProject(projectId) transferExecutionFee(
         depositsig.sig.signer, 
         msg.sender,
         depositsig.sig.executionFee
@@ -139,18 +139,18 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, AccessControl {
         _deposit(TOKEN, depositsig.sig.signer, depositsig.sig.signer, depositsig.amount, isPermit2);
     }
 
-    function changeSubscriptionRate(uint96 subscriptionRate, bytes32 projectId) external {
+    function changeSubscriptionRate(uint96 subscriptionRate, bytes32 projectId) external checkProject(projectId) {
         users[msg.sender].settings.subscriptionRate = subscriptionRate;
 
         emit ChangeSubscriptionRate(msg.sender, subscriptionRate);
     }
 
-    function balanceOf(address account, bytes32 projectId) external view  returns (uint256) {
+    function balanceOf(address account, bytes32 projectId) external view checkProject(projectId) returns (uint256) {
         return uint256(SignedMath.max(users[account].balanceOf(), int(0)));
     }
     //NOTE Нужно перелапатить математику, так как в данный момент потерялся контекст
     //Плюс есть нюансы с тем как правильно применять настройки распределения.
-    function subscribe(address author, uint96 maxRate, bytes32 id, bytes32 projectId) external {
+    function subscribe(address author, uint96 maxRate, bytes32 id, bytes32 projectId) external checkProject(projectId) {
         _subscribeChecksAndEffects(msg.sender, author, maxRate, projectId);
 
         emit Subscribe(msg.sender, author, id);
@@ -160,7 +160,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, AccessControl {
         SubSig calldata subscribeSig, 
         bytes memory rvs,
         bytes32 projectId
-    ) external transferExecutionFee( 
+    ) external checkProject(projectId) transferExecutionFee( 
         subscribeSig.sig.signer,
         msg.sender, 
         subscribeSig.sig.executionFee
@@ -171,7 +171,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, AccessControl {
         emit Subscribe(subscribeSig.sig.signer, subscribeSig.author, subscribeSig.id);
     }
 
-    function unsubscribe(address author, bytes32 id, bytes32 projectId) external {
+    function unsubscribe(address author, bytes32 id, bytes32 projectId) external checkProject(projectId) {
         uint actualRate = _unsubscribeChecks(msg.sender, author);
         _unsubscribeEffects(msg.sender, author, uint96(actualRate));
 
@@ -182,7 +182,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, AccessControl {
         UnSubSig calldata unsubscribeSig, 
         bytes memory rvs,
         bytes32 projectId
-    ) external transferExecutionFee(
+    ) external checkProject(projectId) transferExecutionFee(
         unsubscribeSig.sig.signer, 
         msg.sender, 
         unsubscribeSig.sig.executionFee
@@ -199,7 +199,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, AccessControl {
         PaymentSig calldata payment, 
         bytes memory rvs,
         bytes32 projectId
-    ) external transferExecutionFee(
+    ) external checkProject(projectId) transferExecutionFee(
         payment.sig.signer, 
         msg.sender, 
         payment.sig.executionFee
@@ -218,7 +218,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, AccessControl {
         emit Transfer(payment.sig.signer, payment.receiver, payment.amount);
     }
 
-    function withdraw(uint256 amount, bytes32 projectId) public {
+    function withdraw(uint256 amount, bytes32 projectId) external checkProject(projectId) {
         _withdraw(TOKEN, amount, msg.sender);
     }
 
@@ -229,7 +229,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, AccessControl {
         token.safeTransfer(from, amount);
     }
 
-    function liquidate(address account, bytes32 projectId) external {
+    function liquidate(address account, bytes32 projectId) external checkProject(projectId) {
         UserLib.User storage user = users[projectId][account];
         if (!user.isLiquidatable(_liquidationThreshold(account))) revert NotLiquidatable();
 

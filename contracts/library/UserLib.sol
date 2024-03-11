@@ -13,14 +13,6 @@ library UserLib {
 
     uint16 public constant FLOOR = 10000;
 
-    struct ProjectInfo {
-        address admin;
-        address protocolWallet;
-        bytes32 defaultAdminRole;
-
-        PayoutSigVerifier.Settings settings;
-    }
-
     struct User {
         int256 balance;
         uint256 incomeRate; // changes to this field requires _syncBalance() call
@@ -30,12 +22,17 @@ library UserLib {
         PayoutSigVerifier.Settings settings;
     }
 
+    struct ProtocolInfo {
+        User admin;
+        address protocolWallet;
+    }
+
     function setSettings(
         User storage user,
         PayoutSigVerifier.Settings calldata settings,
-        User storage protocol
+        ProtocolInfo storage protocol
     ) internal {
-        _syncBalance(user, protocol);
+        _syncBalance(user, protocol.admin);
         user.settings = settings;
     }
 

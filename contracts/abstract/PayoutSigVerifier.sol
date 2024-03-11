@@ -85,8 +85,8 @@ abstract contract PayoutSigVerifier is EIP712 {
 
     struct Settings {
         uint96 subscriptionRate;
-        uint16 userFee;
-        uint16 protocolFee;
+        uint16 userFee; //= 10000;
+        uint16 protocolFee; //= 0;
     }
 
     //keccak256(
