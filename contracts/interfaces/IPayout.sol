@@ -5,7 +5,8 @@ import { IERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol"
 import "../abstract/PayoutSigVerifier.sol";
 
 interface IPayout {
-    event SetDefaultSettings(address indexed user, uint16 userFee, uint16 protocolFee);
+    event SetDefaultSettings(bytes32 indexed projectId, uint16 userFee, uint16 protocolFee);
+    event SetSettingsPerUser(address indexed user, uint16 userFee, uint16 protocolFee);
     event Deposit(address indexed user, uint256 amount);
     event ChangeSubscriptionRate(address indexed user, uint96 rate);
     event Subscribe(address indexed user, address indexed author, bytes32 indexed id);
@@ -20,35 +21,52 @@ interface IPayout {
     error NotLegal();
     error ExcessOfRate();
     error ExcessOfSubscriptions();
-
-    function deposit(uint256 amount, bool isPermit2) external;
-
-    function depositFor(uint256 amount, address user, bool isPermit2) external;
-
-    function depositBySig(
-        PayoutSigVerifier.DepositSig calldata depositsig,
-        bytes calldata rvs,
-        bool isPermit2
-    ) external;
     
-    function changeSubscriptionRate(uint96 rate) external;
-
-    function subscribe(address author, uint96 maxRate, bytes32 id) external;
-
-    function unsubscribe(address author, bytes32 id) external;
-
-    function withdraw(uint256 amount) external;
-
-    function liquidate(address account) external;
-
-    function balanceOf(address account) external returns (uint);
-
-    function rescueFunds(IERC20 token_, uint256 amount) external;
-
+    function rescueFunds(IERC20 token_, uint256 amount, bytes32 projectId) external;
     function setDefaultSettings(
         PayoutSigVerifier.Settings calldata settings, 
         bytes32 projectId
     ) external;
+    function setSettingsPerUser(
+        PayoutSigVerifier.SettingsSig calldata settings,
+        bytes calldata rvs,
+        bytes32 projectId
+    ) external;
 
-    function updateProtocolWallet(address newWallet_) external;
+    function balanceOf(address account, bytes32 projectId) external returns (uint);
+
+    function deposit(uint256 amount, bool isPermit2, bytes32 projectId) external;
+    function depositFor(uint256 amount, address user, bool isPermit2, bytes32 projectId) external;
+    function depositBySig(
+        PayoutSigVerifier.DepositSig calldata depositsig,
+        bytes calldata rvs,
+        bool isPermit2,
+        bytes32 projectId
+    ) external;
+    
+    function changeSubscriptionRate(uint96 rate, bytes32 projectId) external;
+
+    function subscribe(address author, uint96 maxRate, bytes32 userId, bytes32 projectId) external;
+    function subscribeBySig(
+        PayoutSigVerifier.SubSig calldata subscribeSig, 
+        bytes memory rvs,
+        bytes32 projectId
+    ) external;
+
+    function unsubscribe(address author, bytes32 userId, bytes32 projectId) external;
+    function unsubscribeBySig(
+        PayoutSigVerifier.UnSubSig calldata unsubscribeSig, 
+        bytes memory rvs,
+        bytes32 projectId
+    ) external;
+
+    function payBySig(
+        PayoutSigVerifier.PaymentSig calldata payment, 
+        bytes memory rvs,
+        bytes32 projectId
+    ) external;
+    
+    function withdraw(uint256 amount, bytes32 projectId) external;
+
+    function liquidate(address account, bytes32 projectId) external;
 }

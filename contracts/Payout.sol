@@ -32,9 +32,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
 
     mapping(bytes32 projectId => mapping(address account => UserLib.User)) public users;
     mapping(bytes32 projectId => mapping(address account => EnumerableMap.AddressToUintMap)) private _subscriptions;
-
-    mapping(bytes32 projectId => address) public projectAdmin;
-    mapping(bytes32 projectId => PayoutSigVerifier.Settings) public projectDefaultSettings;
+    //NOTE Админ кладет настройки в себя
     mapping(bytes32 projectId => uint256 balance) public projectTotalBalance;
 
     modifier onlyValidProjectId(bytes32 projectId) {
@@ -51,10 +49,10 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
         uint256 executionFee,
         bytes32 projectId
     ) {
-        users[spender].decreaseBalance(
-            users[projectId][spender],
+        users[projectId][spender].decreaseBalance(
+            users[projectId][projectAdmin[projectId]],
             executionFee,
-            _liquidationThreshold(spender)
+            _liquidationThreshold(spender, projectId)
         );
         users[projectId][receiver].increaseBalance(executionFee);
 
@@ -74,12 +72,6 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
         TOKEN_DECIMALS = TOKEN_DECIMALS_;
     }
 
-    function updateProtocolWallet(
-        address protocolWallet_, 
-        bytes32 projectId
-    ) external onlyOwner {
-        // projectInfo[projectId].protocolWallet = protocolWallet_;
-    }
     //Добавить общего админа
     function rescueFunds(
         IERC20 token, 
@@ -101,10 +93,8 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
             token.safeTransfer(protocolAdmin, amount);
         }
     }
-    //Нужно переделывать UserLib для того чтобы правильно работал метод setSettings
-    //Возможно придется отказаться от этого метода
-    //Возможно и нет, можно попробовать переделать код под использование уже существующих
-    function setSettings(
+
+    function setDefaultSettings(
         Settings calldata settings, 
         bytes32 projectId
     ) external {
@@ -114,20 +104,33 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
             revert OwnableUnauthorizedAccount(msg.sender);
         }
 
-        if (settings.settings.protocolFee >= settings.settings.userFee) revert WrongPercent();
-        if (settings.settings.protocolFee + settings.settings.userFee != UserLib.FLOOR) revert WrongPercent();
+        if (settings.projectFee >= settings.userFee) revert WrongPercent();
+        if (settings.projectFee + settings.userFee != UserLib.FLOOR) revert WrongPercent();
         
-        projectAdmin[projectId][msg.sender].setSettings(settings.settings, msg.sender);
+        users[projectId][msg.sender].setSettings(settings, users[projectId][msg.sender]); //Нужно посмотреть как себя ведет синк в этом случае
 
-        emit SetDefaultSettings(settings.user, settings.settings.userFee, settings.settings.protocolFee);
+        emit SetDefaultSettings(projectId, settings.userFee, settings.projectFee);
+    }
+
+    function setSettingsPerUser(
+        SettingsSig calldata settings,
+        bytes calldata rvs,
+        bytes32 projectId
+    ) external {
+        if (settings.settings.projectFee >= settings.settings.userFee) revert WrongPercent();
+        if (settings.settings.projectFee + settings.settings.userFee != UserLib.FLOOR) revert WrongPercent();
+        verifySettings(settings, rvs, projectId);
+        users[projectId][settings.user].setSettings(settings.settings, users[projectId][projectAdmin[projectId]]);
+
+        emit SetSettingsPerUser(settings.user, settings.settings.userFee, settings.settings.projectFee);
     }
 
     function deposit(uint256 amount, bool isPermit2, bytes32 projectId) external onlyValidProjectId(projectId) {
-        _deposit(TOKEN, msg.sender, msg.sender, amount, isPermit2);
+        _deposit(TOKEN, msg.sender, msg.sender, amount, isPermit2, projectId);
     }
 
     function depositFor(uint256 amount, address to, bool isPermit2, bytes32 projectId) external onlyValidProjectId(projectId) {
-        _deposit(TOKEN, msg.sender, to, amount, isPermit2);
+        _deposit(TOKEN, msg.sender, to, amount, isPermit2, projectId);
     }
 
     function depositBySig(
@@ -138,27 +141,28 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
     ) external onlyValidProjectId(projectId) transferExecutionFee (
         depositsig.sig.signer, 
         msg.sender,
-        depositsig.sig.executionFee
+        depositsig.sig.executionFee,
+        projectId
     ) {
         verifyDepositSig(depositsig, rvs);
-        _deposit(TOKEN, depositsig.sig.signer, depositsig.sig.signer, depositsig.amount, isPermit2);
+        _deposit(TOKEN, depositsig.sig.signer, depositsig.sig.signer, depositsig.amount, isPermit2, projectId);
     }
 
     function changeSubscriptionRate(uint96 subscriptionRate, bytes32 projectId) external onlyValidProjectId(projectId) {
-        users[msg.sender].settings.subscriptionRate = subscriptionRate;
+        users[projectId][msg.sender].settings.subscriptionRate = subscriptionRate;
 
         emit ChangeSubscriptionRate(msg.sender, subscriptionRate);
     }
 
     function balanceOf(address account, bytes32 projectId) external view onlyValidProjectId(projectId) returns (uint256) {
-        return uint256(SignedMath.max(users[account].balanceOf(), int(0)));
+        return uint256(SignedMath.max(users[projectId][account].balanceOf(users[projectId][projectAdmin[projectId]]), int(0)));
     }
     //NOTE Нужно перелапатить математику, так как в данный момент потерялся контекст
     //Плюс есть нюансы с тем как правильно применять настройки распределения.
-    function subscribe(address author, uint96 maxRate, bytes32 id, bytes32 projectId) external onlyValidProjectId(projectId) {
+    function subscribe(address author, uint96 maxRate, bytes32 userId, bytes32 projectId) external onlyValidProjectId(projectId) {
         _subscribeChecksAndEffects(msg.sender, author, maxRate, projectId);
 
-        emit Subscribe(msg.sender, author, id);
+        emit Subscribe(msg.sender, author, userId);
     }
 
     function subscribeBySig(
@@ -168,7 +172,8 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
     ) external onlyValidProjectId(projectId) transferExecutionFee( 
         subscribeSig.sig.signer,
         msg.sender, 
-        subscribeSig.sig.executionFee
+        subscribeSig.sig.executionFee,
+        projectId
     ) {
         verifySubscribe(subscribeSig, rvs);
         _subscribeChecksAndEffects(subscribeSig.sig.signer, subscribeSig.author, subscribeSig.maxRate, projectId);
@@ -176,11 +181,11 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
         emit Subscribe(subscribeSig.sig.signer, subscribeSig.author, subscribeSig.id);
     }
 
-    function unsubscribe(address author, bytes32 id, bytes32 projectId) external onlyValidProjectId(projectId) {
-        uint actualRate = _unsubscribeChecks(msg.sender, author);
-        _unsubscribeEffects(msg.sender, author, uint96(actualRate));
+    function unsubscribe(address author, bytes32 userId, bytes32 projectId) external onlyValidProjectId(projectId) {
+        uint actualRate = _unsubscribeChecks(msg.sender, author, projectId);
+        _unsubscribeEffects(msg.sender, author, uint96(actualRate), projectId);
 
-        emit Unsubscribe(msg.sender, author, id);
+        emit Unsubscribe(msg.sender, author, userId);
     }
 
     function unsubscribeBySig(
@@ -190,7 +195,8 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
     ) external onlyValidProjectId(projectId) transferExecutionFee(
         unsubscribeSig.sig.signer, 
         msg.sender, 
-        unsubscribeSig.sig.executionFee
+        unsubscribeSig.sig.executionFee,
+        projectId
     ) {
         verifyUnsubscribe(unsubscribeSig, rvs);
 
@@ -207,28 +213,33 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
     ) external onlyValidProjectId(projectId) transferExecutionFee(
         payment.sig.signer, 
         msg.sender, 
-        payment.sig.executionFee
+        payment.sig.executionFee,
+        projectId
     ) {
         verifyPayment(payment, rvs);
 
-        users[payment.sig.signer].decreaseBalance(
-            // users[projectId],
+        users[projectId][payment.sig.signer].decreaseBalance(
+            users[projectId][projectAdmin[projectId]],
             payment.amount,
-            _liquidationThreshold(payment.sig.signer)
+            _liquidationThreshold(payment.sig.signer, projectId)
         );
 
-        users[payment.receiver].increaseBalance(payment.amount);
+        users[projectId][payment.receiver].increaseBalance(payment.amount);
 
         emit PayBySig(payment.sig.signer, payment.receiver, msg.sender, payment.id, payment.amount);
         emit Transfer(payment.sig.signer, payment.receiver, payment.amount);
     }
 
     function withdraw(uint256 amount, bytes32 projectId) external onlyValidProjectId(projectId) {
-        _withdraw(TOKEN, amount, msg.sender);
+        _withdraw(TOKEN, amount, msg.sender, projectId);
     }
 
     function _withdraw(IERC20 token, uint256 amount, address from, bytes32 projectId) internal {
-        users[projectId][from].decreaseBalance(users[projectAdmin[projectId]], amount, _liquidationThreshold(from));
+        users[projectId][from].decreaseBalance(
+            users[projectId][projectAdmin[projectId]], 
+            amount, 
+            _liquidationThreshold(from, projectId)
+        );
         projectTotalBalance[projectId] -= amount;
 
         token.safeTransfer(from, amount);
@@ -236,7 +247,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
 
     function liquidate(address account, bytes32 projectId) external onlyValidProjectId(projectId) {
         UserLib.User storage user = users[projectId][account];
-        if (!user.isLiquidatable(_liquidationThreshold(account))) revert NotLiquidatable();
+        if (!user.isLiquidatable(users[projectId][projectAdmin[projectId]], _liquidationThreshold(account, projectId))) revert NotLiquidatable();
 
         EnumerableMap.AddressToUintMap storage user_subscriptions = _subscriptions[projectId][account];
         for (uint i = user_subscriptions.length(); i > 0; i--) {
@@ -244,7 +255,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
 
             _unsubscribeEffects(account, author, uint96(subscriptionRate), projectId);
         }
-        user.drainBalance(users[msg.sender]);
+        user.drainBalance(users[projectId][msg.sender]);
 
         emit Liquidate(account, msg.sender);
     }
@@ -271,22 +282,22 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
     }
 
     function _unsubscribeEffects(address user, address author, uint96 subscriptionRate, bytes32 projectId) private {
-        users[projectId][user].decreaseOutgoingRate(subscriptionRate, users[projectAdmin[projectId]]);
-        users[projectId][author].decreaseIncomeRate(subscriptionRate, _liquidationThreshold(author), users[projectAdmin[projectId]]);
+        users[projectId][user].decreaseOutgoingRate(users[projectId][projectAdmin[projectId]], subscriptionRate);
+        users[projectId][author].decreaseIncomeRate(users[projectId][projectAdmin[projectId]], subscriptionRate, _liquidationThreshold(author, projectId));
         _subscriptions[projectId][user].remove(author);
     }
 
     function _subscribeChecksAndEffects(address user, address author, uint96 maxRate, bytes32 projectId) private {
         (bool success, uint256 actualRate) = _subscriptions[projectId][user].tryGet(author);
-        if (success) _unsubscribeEffects(user, author, uint96(actualRate));
+        if (success) _unsubscribeEffects(user, author, uint96(actualRate), projectId);
 
         if (_subscriptions[projectId][user].length() == SUBSCRIPTION_THRESHOLD) revert ExcessOfSubscriptions();
 
-        uint96 subscriptionRate = users[author].settings.subscriptionRate;
+        uint96 subscriptionRate = users[projectId][author].settings.subscriptionRate;
         if (subscriptionRate > maxRate) revert ExcessOfRate();
 
-        users[projectId][user].increaseOutgoingRate(subscriptionRate, _liquidationThreshold(user), users[projectAdmin[projectId]]);
-        users[projectId][author].increaseIncomeRate(subscriptionRate, users[projectAdmin[projectId]]);
+        users[projectId][user].increaseOutgoingRate(users[projectId][projectAdmin[projectId]], subscriptionRate, _liquidationThreshold(user, projectId));
+        users[projectId][author].increaseIncomeRate(users[projectId][projectAdmin[projectId]], subscriptionRate);
         _subscriptions[projectId][user].set(author, subscriptionRate);
     }
 
@@ -295,7 +306,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
         (, int256 coinPrice, , , ) = COIN_PRICE_FEED.latestRoundData();
 
         uint256 expectedNativeAssetCost = block.basefee *
-            (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[user].length());
+            (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[projectId][user].length());
 
         uint256 executionPrice = expectedNativeAssetCost * uint256(coinPrice);
 
