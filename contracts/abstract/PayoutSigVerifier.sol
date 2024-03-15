@@ -85,8 +85,7 @@ abstract contract PayoutSigVerifier is EIP712 {
 
     struct Settings {
         uint96 subscriptionRate;
-        uint16 userFee; //= 10000;
-        uint16 projectFee; //= 0;
+        uint16 projectFee; // of 10k shares
     }
 
     //keccak256(
@@ -199,20 +198,20 @@ abstract contract PayoutSigVerifier is EIP712 {
 
     function verifySubscribe(SubSig calldata subscription, bytes memory rvs) internal returns (bool) {
         return _verify(
-            _hashSubscribe(subscription), 
-            subscription.sig.signer, 
-            subscription.sig.signer, 
-            subscription.sig.nonce, 
+            _hashSubscribe(subscription),
+            subscription.sig.signer,
+            subscription.sig.signer,
+            subscription.sig.nonce,
             rvs
         );
     }
 
     function verifyUnsubscribe(UnSubSig calldata unsubscription, bytes memory rvs) internal returns (bool) {
         return _verify(
-            _hashUnSubscribe(unsubscription), 
-            unsubscription.sig.signer, 
-            unsubscription.sig.signer, 
-            unsubscription.sig.nonce, 
+            _hashUnSubscribe(unsubscription),
+            unsubscription.sig.signer,
+            unsubscription.sig.signer,
+            unsubscription.sig.nonce,
             rvs);
     }
 
