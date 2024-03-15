@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { SafeERC20, IERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
+import { BySig, Context } from "@1inch/solidity-utils/contracts/BySig.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import { PermitAndCall } from "@1inch/solidity-utils/contracts/PermitAndCall.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol"; //NOTE Стоит дописать реализацию сверху
@@ -12,7 +13,7 @@ import "./interfaces/IPayout.sol";
 import "./abstract/PayoutSigVerifier.sol";
 import "./library/UserLib.sol";
 
-contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
+contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, BySig, Ownable {
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -65,14 +66,13 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
         address TOKEN_PRICE_FEED_,
         address TOKEN_,
         uint8 TOKEN_DECIMALS_
-    ) Ownable(msg.sender) {
+    ) Ownable(_msgSender()) {
         COIN_PRICE_FEED = AggregatorV3Interface(CHAIN_PRICE_FEED_);
         TOKEN_PRICE_FEED = AggregatorV3Interface(TOKEN_PRICE_FEED_);
         TOKEN = IERC20(TOKEN_);
         TOKEN_DECIMALS = TOKEN_DECIMALS_;
     }
 
-    //Добавить общего админа
     function rescueFunds(
         IERC20 token, 
         uint256 amount, 
@@ -86,7 +86,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
         }
 
         if (address(token) == address(0)) {
-            (bool success, ) = payable(msg.sender).call{value: amount}("");
+            (bool success, ) = payable(_msgSender()).call{value: amount}("");
 
             require(success, "Payout: Transfer coin failed");
         } else {
@@ -99,15 +99,15 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
         bytes32 projectId
     ) external {
         if(projectAdmin[projectId] == address(0)) {
-            projectAdmin[projectId] = msg.sender;
-        } else if(projectAdmin[projectId] != msg.sender){
-            revert OwnableUnauthorizedAccount(msg.sender);
+            projectAdmin[projectId] = _msgSender();
+        } else if(projectAdmin[projectId] != _msgSender()){
+            revert OwnableUnauthorizedAccount(_msgSender());
         }
 
         if (settings.projectFee >= settings.userFee) revert WrongPercent();
         if (settings.projectFee + settings.userFee != UserLib.FLOOR) revert WrongPercent();
         
-        users[projectId][msg.sender].setSettings(settings, users[projectId][msg.sender]); //Нужно посмотреть как себя ведет синк в этом случае
+        users[projectId][_msgSender()].setSettings(settings, users[projectId][_msgSender()]); //Нужно посмотреть как себя ведет синк в этом случае
 
         emit SetDefaultSettings(projectId, settings.userFee, settings.projectFee);
     }
@@ -116,7 +116,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
         SettingsSig calldata settings,
         bytes calldata rvs,
         bytes32 projectId
-    ) external {
+    ) external onlyValidProjectId(projectId) {
         if (settings.settings.projectFee >= settings.settings.userFee) revert WrongPercent();
         if (settings.settings.projectFee + settings.settings.userFee != UserLib.FLOOR) revert WrongPercent();
         verifySettings(settings, rvs, projectId);
@@ -126,11 +126,11 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
     }
 
     function deposit(uint256 amount, bool isPermit2, bytes32 projectId) external onlyValidProjectId(projectId) {
-        _deposit(TOKEN, msg.sender, msg.sender, amount, isPermit2, projectId);
+        _deposit(TOKEN, _msgSender(), _msgSender(), amount, isPermit2, projectId);
     }
 
     function depositFor(uint256 amount, address to, bool isPermit2, bytes32 projectId) external onlyValidProjectId(projectId) {
-        _deposit(TOKEN, msg.sender, to, amount, isPermit2, projectId);
+        _deposit(TOKEN, _msgSender(), to, amount, isPermit2, projectId);
     }
 
     function depositBySig(
@@ -140,7 +140,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
         bytes32 projectId
     ) external onlyValidProjectId(projectId) transferExecutionFee (
         depositsig.sig.signer, 
-        msg.sender,
+        _msgSender(),
         depositsig.sig.executionFee,
         projectId
     ) {
@@ -149,20 +149,19 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
     }
 
     function changeSubscriptionRate(uint96 subscriptionRate, bytes32 projectId) external onlyValidProjectId(projectId) {
-        users[projectId][msg.sender].settings.subscriptionRate = subscriptionRate;
+        users[projectId][_msgSender()].settings.subscriptionRate = subscriptionRate;
 
-        emit ChangeSubscriptionRate(msg.sender, subscriptionRate);
+        emit ChangeSubscriptionRate(_msgSender(), subscriptionRate);
     }
 
     function balanceOf(address account, bytes32 projectId) external view onlyValidProjectId(projectId) returns (uint256) {
         return uint256(SignedMath.max(users[projectId][account].balanceOf(users[projectId][projectAdmin[projectId]]), int(0)));
     }
-    //NOTE Нужно перелапатить математику, так как в данный момент потерялся контекст
-    //Плюс есть нюансы с тем как правильно применять настройки распределения.
-    function subscribe(address author, uint96 maxRate, bytes32 userId, bytes32 projectId) external onlyValidProjectId(projectId) {
-        _subscribeChecksAndEffects(msg.sender, author, maxRate, projectId);
 
-        emit Subscribe(msg.sender, author, userId);
+    function subscribe(address author, uint96 maxRate, bytes32 userId, bytes32 projectId) external onlyValidProjectId(projectId) {
+        _subscribeChecksAndEffects(_msgSender(), author, maxRate, projectId);
+
+        emit Subscribe(_msgSender(), author, userId);
     }
 
     function subscribeBySig(
@@ -171,7 +170,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
         bytes32 projectId
     ) external onlyValidProjectId(projectId) transferExecutionFee( 
         subscribeSig.sig.signer,
-        msg.sender, 
+        _msgSender(), 
         subscribeSig.sig.executionFee,
         projectId
     ) {
@@ -182,10 +181,10 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
     }
 
     function unsubscribe(address author, bytes32 userId, bytes32 projectId) external onlyValidProjectId(projectId) {
-        uint actualRate = _unsubscribeChecks(msg.sender, author, projectId);
-        _unsubscribeEffects(msg.sender, author, uint96(actualRate), projectId);
+        uint actualRate = _unsubscribeChecks(_msgSender(), author, projectId);
+        _unsubscribeEffects(_msgSender(), author, uint96(actualRate), projectId);
 
-        emit Unsubscribe(msg.sender, author, userId);
+        emit Unsubscribe(_msgSender(), author, userId);
     }
 
     function unsubscribeBySig(
@@ -194,7 +193,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
         bytes32 projectId
     ) external onlyValidProjectId(projectId) transferExecutionFee(
         unsubscribeSig.sig.signer, 
-        msg.sender, 
+        _msgSender(), 
         unsubscribeSig.sig.executionFee,
         projectId
     ) {
@@ -212,7 +211,7 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
         bytes32 projectId
     ) external onlyValidProjectId(projectId) transferExecutionFee(
         payment.sig.signer, 
-        msg.sender, 
+        _msgSender(), 
         payment.sig.executionFee,
         projectId
     ) {
@@ -226,12 +225,12 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
 
         users[projectId][payment.receiver].increaseBalance(payment.amount);
 
-        emit PayBySig(payment.sig.signer, payment.receiver, msg.sender, payment.id, payment.amount);
+        emit PayBySig(payment.sig.signer, payment.receiver, _msgSender(), payment.id, payment.amount);
         emit Transfer(payment.sig.signer, payment.receiver, payment.amount);
     }
 
     function withdraw(uint256 amount, bytes32 projectId) external onlyValidProjectId(projectId) {
-        _withdraw(TOKEN, amount, msg.sender, projectId);
+        _withdraw(TOKEN, amount, _msgSender(), projectId);
     }
 
     function _withdraw(IERC20 token, uint256 amount, address from, bytes32 projectId) internal {
@@ -255,9 +254,9 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
 
             _unsubscribeEffects(account, author, uint96(subscriptionRate), projectId);
         }
-        user.drainBalance(users[projectId][msg.sender]);
+        user.drainBalance(users[projectId][_msgSender()]);
 
-        emit Liquidate(account, msg.sender);
+        emit Liquidate(account, _msgSender());
     }
 
     function _deposit(IERC20 token, address from, address to, uint256 amount, bool usePermit2, bytes32 projectId) internal virtual {
@@ -315,5 +314,11 @@ contract Payout is IPayout, PayoutSigVerifier, PermitAndCall, Ownable {
         } else {
             return int256(executionPrice) / tokenPrice;
         }
+    }
+
+    function _chargeSigner(address signer, address relayer, address token, uint256 amount) internal override{}
+
+    function _msgSender() internal view override (Context, BySig) virtual returns (address) {
+        return super._msgSender();
     }
 }

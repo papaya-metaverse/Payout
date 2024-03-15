@@ -17,7 +17,7 @@
     "test/*.js"
   ],
   "dependencies": {
-    "@1inch/solidity-utils": "3.7.1",
+    "@1inch/solidity-utils": "https://github.com/1inch/solidity-utils.git#feature/bysig",
     "@aave/protocol-v2": "^1.0.1",
     "@chainlink/contracts": "^0.8.0",
     "@openzeppelin/contracts": "5.0.1",
