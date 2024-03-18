@@ -32,7 +32,8 @@ interface IPapaya {
     function setDefaultSettings(Settings calldata settings, uint256 projectId) external;
     function setSettingsForUser(address user, Settings calldata settings, uint256 projectId) external;
 
-    function balanceOf(address account) external returns (uint);
+    function balanceOf(address account) external view returns (uint);
+    function subscriptions(address from, address to) external view returns (bool, uint256 encodedRates);
 
     function deposit(uint256 amount, bool isPermit2) external;
     function depositFor(uint256 amount, address user, bool isPermit2) external;

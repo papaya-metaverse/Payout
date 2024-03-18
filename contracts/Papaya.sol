@@ -121,6 +121,10 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         return uint256(SignedMath.max(users[account].balanceOf(), int(0)));
     }
 
+    function subscriptions(address from, address to) external view returns (bool, uint256 encodedRates) {
+        return _subscriptions[from].tryGet(to);
+    }
+
     function deposit(uint256 amount, bool isPermit2) external {
         _deposit(TOKEN, _msgSender(), _msgSender(), amount, isPermit2);
     }
