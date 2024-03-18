@@ -93,6 +93,8 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
 
     function claimProjectId() external {
         projectOwners.push(_msgSender());
+
+        emit ProjectIdClaimed(projectOwners.length - 1, _msgSender());
     }
 
     function setDefaultSettings(Settings calldata settings, uint256 projectId)
@@ -101,7 +103,6 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         onlyValidProjectId(projectId)
         onlyValidSettings(settings)
     {
-        users[projectOwners[projectId]].forceSync();
         defaultSettings[projectId] = settings;
         emit SetDefaultSettings(projectId, settings.projectFee);
     }
@@ -112,17 +113,8 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         onlyValidProjectId(projectId)
         onlyValidSettings(settings)
     {
-        users[user].forceSync();
         userSettings[projectId][user] = settings;
         emit SetSettingsForUser(projectId, user, settings.projectFee);
-    }
-
-    function changeSubscriptionRate(uint96 subscriptionRate, uint256 projectId)
-        external
-        onlyValidProjectId(projectId)
-    {
-        userSettings[projectId][_msgSender()].subscriptionRate = subscriptionRate;
-        emit ChangeSubscriptionRate(_msgSender(), subscriptionRate);
     }
 
     function balanceOf(address account) external view returns (uint256) {
@@ -164,7 +156,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         _update(_msgSender(), receiver, amount);
     }
 
-    function subscribe(address author, uint96 maxRate, uint256 projectId)
+    function subscribe(address author, uint96 subscriptionRate, uint256 projectId)
         external
         onlyValidProjectId(projectId)
     {
@@ -175,9 +167,6 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         }
 
         if (_subscriptions[_msgSender()].length() == SUBSCRIPTION_THRESHOLD) revert ExcessOfSubscriptions();
-
-        uint96 subscriptionRate = userSettings[projectId][author].subscriptionRate;
-        if (subscriptionRate > maxRate) revert ExcessOfRate();
 
         Settings storage settings = userSettings[projectId][author];
         if (settings.initialized == false) {

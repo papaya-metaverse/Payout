@@ -6,7 +6,6 @@ import { IERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol"
 interface IPapaya {
     event SetDefaultSettings(uint256 indexed projectId, uint16 protocolFee);
     event SetSettingsForUser(uint256 indexed projectId, address indexed user, uint16 protocolFee);
-    event ChangeSubscriptionRate(address indexed user, uint96 rate);
     event Subscribe(address indexed user, address indexed author, uint256 indexed encodedRates);
     event Unsubscribe(address indexed user, address indexed author, uint256 indexed encodedRates);
     event Liquidate(address indexed user, address indexed liquidator);
@@ -32,7 +31,6 @@ interface IPapaya {
     function rescueFunds(IERC20 token, uint256 amount) external;
     function setDefaultSettings(Settings calldata settings, uint256 projectId) external;
     function setSettingsForUser(address user, Settings calldata settings, uint256 projectId) external;
-    function changeSubscriptionRate(uint96 rate, uint256 projectId) external;
 
     function balanceOf(address account) external returns (uint);
 
@@ -43,7 +41,7 @@ interface IPapaya {
 
     function pay(address receiver, uint256 amount) external;
 
-    function subscribe(address author, uint96 maxRate, uint256 projectId) external;
+    function subscribe(address author, uint96 subscriptionRate, uint256 projectId) external;
     function unsubscribe(address author) external;
     function liquidate(address account) external;
 }

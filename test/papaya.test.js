@@ -17,6 +17,8 @@ describe('papaya test', function () {
     const ELEVEN_USDT = FIVE_USDT + SIX_USDT
     const SUB_RATE = 58
     const CHAIN_ID = 31337
+
+    const FIRST_PROJECTID = 0
     
     const PROJECT_FEE = 2000
 
@@ -50,7 +52,7 @@ describe('papaya test', function () {
             const {token, papaya} = await baseSetup()
 
             await papaya.connect(admin).claimProjectId()
-            await papaya.connect(admin).setDefaultSetting(Settings, admin.address)
+            await papaya.connect(admin).setDefaultSetting(Settings, FIRST_PROJECTID)
 
             expect(await papaya.defaultSettings(admin.address)).to.be.eq(Settings)
         })
@@ -58,20 +60,20 @@ describe('papaya test', function () {
             const {token, papaya} = await baseSetup()
 
             await papaya.connect(admin).claimProjectId()
-            await papaya.connect(admin).setSettingsForUser(user_1.address, Settings, admin.address)
+            await papaya.connect(admin).setSettingsForUser(user_1.address, Settings, FIRST_PROJECTID)
 
-            expect(await papaya.userSettings(admin.address, user_1.address)).to.be.eq(Settings)
+            expect(await papaya.userSettings(FIRST_PROJECTID, user_1.address)).to.be.eq(Settings)
         })
         it("Method: changeSubscriptionRate", async function () {
             const {token, papaya} = await baseSetup()
 
             await papaya.connect(admin).claimProjectId()
 
-            expect((await papaya.userSettings(admin.address, user_1.address)).subscriptionRate).to.be.eq(0)
+            expect((await papaya.userSettings(FIRST_PROJECTID, user_1.address)).subscriptionRate).to.be.eq(0)
 
-            await papaya.connect(user_1).changeSubscriptionRate(SUB_RATE, admin.address)
+            await papaya.connect(user_1).changeSubscriptionRate(SUB_RATE, FIRST_PROJECTID)
 
-            expect((await papaya.userSettings(admin.address, user_1.address)).subscriptionRate).to.be.eq(SUB_RATE)
+            expect((await papaya.userSettings(FIRST_PROJECTID, user_1.address)).subscriptionRate).to.be.eq(SUB_RATE)
         })
         it("Method: deposit", async function () {
             const {token, papaya} = await baseSetup()
@@ -119,11 +121,10 @@ describe('papaya test', function () {
 
             await papaya.connect(admin).claimProjectId()
 
-            await papaya.connect(admin).setSettingsForUser(user_1.address, Settings, admin.address)
-            await papaya.connect(admin).setSettingsForUser(user_2.address, Settings, admin.address)
+            await papaya.connect(admin).setSettingsForUser(user_1.address, Settings, FIRST_PROJECTID)
+            await papaya.connect(admin).setSettingsForUser(user_2.address, Settings, FIRST_PROJECTID)
 
-
-            await papaya.connect(user_1).subscribe(user_2.address, SUB_RATE, admin.address)
+            await papaya.connect(user_1).subscribe(user_2.address, SUB_RATE, FIRST_PROJECTID)
 
             expect((await papaya.users(user_1.address)).outgoingRate).to.be.eq(SUB_RATE)
             expect((await papaya.users(user_2.address)).incomeRate).to.be.eq(SUB_RATE)
@@ -135,10 +136,10 @@ describe('papaya test', function () {
 
             await papaya.connect(admin).claimProjectId()
 
-            await papaya.connect(admin).setSettingsForUser(user_1.address, Settings, admin.address)
-            await papaya.connect(admin).setSettingsForUser(user_2.address, Settings, admin.address)
+            await papaya.connect(admin).setSettingsForUser(user_1.address, Settings, FIRST_PROJECTID)
+            await papaya.connect(admin).setSettingsForUser(user_2.address, Settings, FIRST_PROJECTID)
 
-            await papaya.connect(user_1).subscribe(user_2.address, SUB_RATE, admin.address)
+            await papaya.connect(user_1).subscribe(user_2.address, SUB_RATE, FIRST_PROJECTID)
 
             expect((await papaya.users(user_1.address)).outgoingRate).to.be.eq(SUB_RATE)
             expect((await papaya.users(user_2.address)).incomeRate).to.be.eq(SUB_RATE)
