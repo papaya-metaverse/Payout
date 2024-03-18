@@ -4,21 +4,20 @@ pragma solidity 0.8.24;
 import { SafeERC20, IERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import { PermitAndCall } from "@1inch/solidity-utils/contracts/PermitAndCall.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol"; //NOTE Стоит дописать реализацию сверху
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { SignedMath } from "@openzeppelin/contracts/utils/math/SignedMath.sol";
-import { BySig } from "@1inch/solidity-utils/contracts/BySig.sol";
+import { BySig, EIP712 } from "@1inch/solidity-utils/contracts/BySig.sol";
 import { Context } from "@openzeppelin/contracts/utils/Context.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 import "./interfaces/IPapaya.sol";
-import "./abstract/PayoutSigVerifier.sol";
 import "./library/UserLib.sol";
 
-// TODO: custom error messages
 // NOTE: Default settings for projectId are stored in projectAdmin[projectId].settings
-contract Papaya is IPapaya, PermitAndCall, Ownable, BySig {
+contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     using SafeCast for uint256;
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
@@ -26,7 +25,7 @@ contract Papaya is IPapaya, PermitAndCall, Ownable, BySig {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
     uint16 public constant FLOOR = 10000;
-    uint16 public constant MAX_PROTOCOL_FEE = FLOOR / 10;
+    uint16 public constant MAX_PROTOCOL_FEE = FLOOR / 20;
 
     uint256 public constant APPROX_LIQUIDATE_GAS = 120000;
     uint256 public constant APPROX_SUBSCRIPTION_GAS = 8000;
@@ -56,7 +55,7 @@ contract Papaya is IPapaya, PermitAndCall, Ownable, BySig {
     }
 
     modifier onlyProjectAdmin(uint256 projectId) {
-        if (projectOwners[projectId] != _msgSender()) revert AccessDenied(projectId);
+        if (projectOwners[projectId] != _msgSender()) revert AccessDenied(projectId); //??
         _;
     }
 
@@ -102,8 +101,9 @@ contract Papaya is IPapaya, PermitAndCall, Ownable, BySig {
         onlyValidProjectId(projectId)
         onlyValidSettings(settings)
     {
+        users[projectOwners[projectId]].forceSync();
         defaultSettings[projectId] = settings;
-        // emit SetDefaultSettings(projectId, settings.projectFee);
+        emit SetDefaultSettings(projectId, settings.projectFee);
     }
 
     function setSettingsForUser(address user, Settings calldata settings, uint256 projectId)
@@ -112,6 +112,7 @@ contract Papaya is IPapaya, PermitAndCall, Ownable, BySig {
         onlyValidProjectId(projectId)
         onlyValidSettings(settings)
     {
+        users[user].forceSync();
         userSettings[projectId][user] = settings;
         emit SetSettingsForUser(projectId, user, settings.projectFee);
     }
@@ -163,8 +164,6 @@ contract Papaya is IPapaya, PermitAndCall, Ownable, BySig {
         _update(_msgSender(), receiver, amount);
     }
 
-    //NOTE Нужно перелапатить математику, так как в данный момент потерялся контекст
-    //Плюс есть нюансы с тем как правильно применять настройки распределения.
     function subscribe(address author, uint96 maxRate, uint256 projectId)
         external
         onlyValidProjectId(projectId)
@@ -181,7 +180,7 @@ contract Papaya is IPapaya, PermitAndCall, Ownable, BySig {
         if (subscriptionRate > maxRate) revert ExcessOfRate();
 
         Settings storage settings = userSettings[projectId][author];
-        if (settings.initialized == 0) {
+        if (settings.initialized == false) {
             settings = defaultSettings[projectId];
         }
 

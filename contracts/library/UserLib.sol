@@ -25,6 +25,10 @@ library UserLib {
         return user.balance + (user.incomeRate - user.outgoingRate) * int256(timePassed);
     }
 
+    function forceSync(User storage user) internal {
+        _syncBalance(user);
+    }
+
     function _syncBalance(User storage user) private {
         int256 balance = balanceOf(user);
         if (balance != user.balance) {

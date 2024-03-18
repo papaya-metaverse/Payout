@@ -1,9 +1,9 @@
 require('@nomicfoundation/hardhat-verify');
 require('@nomicfoundation/hardhat-chai-matchers');
-// require("hardhat-contract-sizer");
+require("hardhat-contract-sizer");
 require('hardhat-dependency-compiler');
 require('hardhat-deploy');
-// require('hardhat-gas-reporter');
+require('hardhat-gas-reporter');
 require('hardhat-tracer');
 require('dotenv').config();
 
@@ -42,12 +42,12 @@ module.exports = {
       // outputFile: "./gas-report",
       noColors: false
     },
-    dependencyCompiler: {
-        paths: [
-            '@1inch/solidity-utils/contracts/mocks/TokenCustomDecimalsMock.sol',
-            '@1inch/solidity-utils/contracts/mocks/TokenMock.sol'
-        ],
-    },
+    // dependencyCompiler: {
+    //     paths: [
+    //         '@1inch/solidity-utils/contracts/mocks/TokenCustomDecimalsMock.sol',
+    //         '@1inch/solidity-utils/contracts/mocks/TokenMock.sol'
+    //     ],
+    // },
     etherscan: {
       apiKey:{
         polygonMumbai: `${process.env.POLYGONSCAN_API_KEY}` || '',
@@ -86,22 +86,30 @@ module.exports = {
       mumbai: {
         chainId: 80001,
         url: `https://polygon-mumbai.g.alchemy.com/v2/${process.env.ALCHEMY_MUMBAI_KEY}`,
-        account: [ `0x${process.env.PRIVATE_KEY_DEPLOYER}`]
+        accounts: {
+          mnemonic: `${process.env.SEED_PHRASE_DEPLOYER}`,
+        }
       },
       polygon: {
         chainId: 137,
         url: `https://polygon-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_POLYGON_KEY}`,
-        account: [ `0x${process.env.PRIVATE_KEY_DEPLOYER}`]
+        accounts: {
+          mnemonic: `${process.env.SEED_PHRASE_DEPLOYER}`,
+        }
       },
       bsc: {
         chainId: 56,
         url: `https://bsc-dataseed.bnbchain.org/`,
-        account: [ `0x${process.env.PRIVATE_KEY_DEPLOYER}`]
+        accounts: {
+          mnemonic: `${process.env.SEED_PHRASE_DEPLOYER}`,
+        }
       },
       bscTestnet: {
         chainId: 97,
         url: `https://data-seed-prebsc-1-s1.bnbchain.org:8545`,
-        account: [ `0x${process.env.PRIVATE_KEY_DEPLOYER}`]
+        accounts: {
+          mnemonic: `${process.env.SEED_PHRASE_DEPLOYER}`,
+        }
       }
     },
 };
