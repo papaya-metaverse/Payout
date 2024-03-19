@@ -10,7 +10,7 @@ require('dotenv').config();
 
 module.exports = {
     tracer: {
-        enableAllOpcodes: true,
+        // enableAllOpcodes: true,
     },
     solidity: {
       compilers: [

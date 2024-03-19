@@ -24,7 +24,6 @@ interface IPapaya {
 
     struct Settings {
         bool initialized;
-        uint96 subscriptionRate;
         uint16 projectFee; // of 10k shares
     }
 
@@ -34,6 +33,8 @@ interface IPapaya {
 
     function balanceOf(address account) external view returns (uint);
     function subscriptions(address from, address to) external view returns (bool, uint256 encodedRates);
+    function allSubscriptions(address from) external view returns(address[] memory to, uint256[] memory encodedRates);
+    function allProjectOwners() external view returns(address[] memory);
 
     function deposit(uint256 amount, bool isPermit2) external;
     function depositFor(uint256 amount, address user, bool isPermit2) external;

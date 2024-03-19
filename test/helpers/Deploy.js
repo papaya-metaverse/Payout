@@ -55,13 +55,13 @@ async function baseSetup() {
 
     const token = await deployToken()
 
-    const Papaya = await deployPapaya(
+    const papaya = await deployPapaya(
         await token.getAddress(),
         await coinPriceFeed.getAddress(),
         await tokenPriceFeed.getAddress()
     )
 
-    return { token, Papaya }
+    return { token, papaya }
 }
 
 async function deployAPapaya(

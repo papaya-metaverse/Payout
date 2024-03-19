@@ -13,18 +13,20 @@ import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
-import "./interfaces/IPapaya.sol";
-import "./library/UserLib.sol";
+import "../interfaces/IPapaya.sol";
+import "../library/UserLib.sol";
+
+import "hardhat/console.sol";
 
 // NOTE: Default settings for projectId are stored in projectAdmin[projectId].settings
-contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
+contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     using SafeCast for uint256;
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
     using Address for address payable;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    uint16 public constant FLOOR = 10000;
+    uint256 public constant FLOOR = 10000;
     uint256 public constant MAX_PROTOCOL_FEE = FLOOR * 20 / 100;
 
     uint256 public constant APPROX_LIQUIDATE_GAS = 120000;
@@ -71,7 +73,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         uint8 TOKEN_DECIMALS_
     )
         Ownable(_msgSender())
-        EIP712(type(Papaya).name, "1")
+        EIP712(type(PapayaMock).name, "1")
     {
         COIN_PRICE_FEED = AggregatorV3Interface(CHAIN_PRICE_FEED_);
         TOKEN_PRICE_FEED = AggregatorV3Interface(TOKEN_PRICE_FEED_);
@@ -105,6 +107,9 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         onlyValidProjectId(projectId)
         onlyValidSettings(settings)
     {
+        console.log("Init: ", settings.initialized);
+        console.log("projectFee: ", settings.projectFee);
+
         defaultSettings[projectId] = settings;
         emit SetDefaultSettings(projectId, settings.projectFee);
     }
@@ -123,6 +128,10 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         return uint256(SignedMath.max(users[account].balanceOf(), int(0)));
     }
 
+    function allProjectOwners() external view returns(address[] memory) {
+        return projectOwners;
+    } 
+
     function subscriptions(address from, address to) external view returns (bool, uint256 encodedRates) {
         return _subscriptions[from].tryGet(to);
     }
@@ -135,10 +144,6 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         for (uint256 i = 0; i < to.length; i++) {
             encodedRates[i] = user_subscriptions.get(to[i]);
         }
-    }
-
-    function allProjectOwners() external view returns(address[] memory) {
-        return projectOwners;
     } 
 
     function deposit(uint256 amount, bool isPermit2) external {
@@ -223,7 +228,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         (, int256 tokenPrice, , , ) = TOKEN_PRICE_FEED.latestRoundData();
         (, int256 coinPrice, , , ) = COIN_PRICE_FEED.latestRoundData();
 
-        uint256 expectedNativeAssetCost = block.basefee *
+        uint256 expectedNativeAssetCost = tx.gasprice *
             (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[user].length());
 
         uint256 executionPrice = expectedNativeAssetCost * uint256(coinPrice);
