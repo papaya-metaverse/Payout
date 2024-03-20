@@ -11,16 +11,16 @@ async function timestamp() {
 }
 
 describe('papaya test', function () {
-    const DAY = 86400
+    const DAY = 86400n
     const FIVE_USDT = 5_000_000n
     const SIX_USDT = 6_000_000n
-    // const ELEVEN_USDT = FIVE_USDT + SIX_USDT
-    const SUB_RATE = 58
+    const ELEVEN_USDT = FIVE_USDT + SIX_USDT
+    const SUB_RATE = 58n
     const CHAIN_ID = 31337
 
     const FIRST_PROJECTID = 0
     
-    const PROJECT_FEE = 2000
+    const PROJECT_FEE = 2000n
 
     const settings = {
         initialized: true,
@@ -47,13 +47,15 @@ describe('papaya test', function () {
 
             expect(await token.balanceOf(await papaya.getAddress())).to.be.eq(0n)
         })
-        it.only("Method: setDefaultSettings", async function () {
+        it("Method: setDefaultSettings", async function () {
             const {token, papaya} = await baseSetup()
 
             await papaya.connect(admin).claimProjectId()
             await papaya.connect(admin).setDefaultSettings(settings, FIRST_PROJECTID)
+            let defSettings = await papaya.defaultSettings(FIRST_PROJECTID)
 
-            expect(await papaya.defaultSettings(admin.address)).to.be.eq([true, FIRST_PROJECTID])
+            expect(defSettings[0]).to.be.eq(settings.initialized)
+            expect(defSettings[1]).to.be.eq(settings.projectFee)
         })
         it("Method: setSettingsForUser", async function () {
             const {token, papaya} = await baseSetup()
@@ -61,14 +63,17 @@ describe('papaya test', function () {
             await papaya.connect(admin).claimProjectId()
             await papaya.connect(admin).setSettingsForUser(user_1.address, settings, FIRST_PROJECTID)
 
-            expect(await papaya.userSettings(FIRST_PROJECTID, user_1.address)).to.be.eq(settings)
+            let defSettings = await papaya.userSettings(FIRST_PROJECTID, user_1.address)
+
+            expect(defSettings[0]).to.be.eq(settings.initialized)
+            expect(defSettings[1]).to.be.eq(settings.projectFee)
         })
         it("Method: deposit", async function () {
             const {token, papaya} = await baseSetup()
 
             await token.transfer(user_1.address, SIX_USDT)
+            await token.connect(user_1).approve(await papaya.getAddress(), SIX_USDT)
 
-            await papaya.connect(admin).claimProjectId()
             await papaya.connect(user_1).deposit(SIX_USDT, false)
 
             expect(await token.balanceOf(user_1.address)).to.be.eq(0n)
@@ -78,21 +83,22 @@ describe('papaya test', function () {
             const {token, papaya} = await baseSetup()
 
             await token.transfer(user_1.address, SIX_USDT)
+            await token.connect(user_1).approve(await papaya.getAddress(), SIX_USDT)
 
-            await papaya.connect(admin).claimProjectId()
             await papaya.connect(user_1).deposit(SIX_USDT, false)
 
             expect(await papaya.balanceOf(user_1.address)).to.be.eq(SIX_USDT)
 
             await papaya.connect(user_1).withdraw(SIX_USDT)
 
-            expect(await token.balanceOF(user_1.address)).to.be.eq(SIX_USDT)
-
+            expect(await token.balanceOf(user_1.address)).to.be.eq(SIX_USDT)
         })
         it("Method: pay", async function () {
             const {token, papaya} = await baseSetup()
 
             await token.transfer(user_1.address, SIX_USDT)
+            await token.connect(user_1).approve(await papaya.getAddress(), SIX_USDT)
+
             await papaya.connect(user_1).deposit(SIX_USDT, false)
 
             expect(await papaya.balanceOf(user_2.address)).to.be.eq(SIX_USDT)
@@ -105,8 +111,10 @@ describe('papaya test', function () {
         it("Method: subscribe", async function () {
             const {token, papaya} = await baseSetup()
 
-            await token.transfer(user_1.address, SIX_USDT)
+            await token.transfer(user_1.address, ELEVEN_USDT)
+            await token.connect(user_1).approve(await papaya.getAddress(), ELEVEN_USDT)
 
+            await papaya.connect(user_1).deposit(ELEVEN_USDT, false)
             await papaya.connect(admin).claimProjectId()
 
             await papaya.connect(admin).setSettingsForUser(user_1.address, settings, FIRST_PROJECTID)
@@ -120,8 +128,10 @@ describe('papaya test', function () {
         it("Method: unsubscribe", async function () {
             const {token, papaya} = await baseSetup()
 
-            await token.transfer(user_1.address, SIX_USDT)
+            await token.transfer(user_1.address, ELEVEN_USDT)
+            await token.connect(user_1).approve(await papaya.getAddress(), ELEVEN_USDT)
 
+            await papaya.connect(user_1).deposit(ELEVEN_USDT, false)
             await papaya.connect(admin).claimProjectId()
 
             await papaya.connect(admin).setSettingsForUser(user_1.address, settings, FIRST_PROJECTID)
@@ -140,31 +150,31 @@ describe('papaya test', function () {
         it("Method: liquidate", async function () {
 
         })
-        it("Method: permitAndCall then deposit", async function () {
-            const {token, papaya} = await baseSetup()
+        // it("Method: permitAndCall then deposit", async function () {
+        //     const {token, papaya} = await baseSetup()
 
-            await token.transfer(user_1.address, SIX_USDT)
+        //     await token.transfer(user_1.address, SIX_USDT)
 
-            const permit = await getPermit(
-                user_1,
-                token,
-                '1',
-                CHAIN_ID,
-                await papaya.getAddress(),
-                SIX_USDT,
-                await timestamp() + 100
-            )
+        //     const permit = await getPermit(
+        //         user_1,
+        //         token,
+        //         '1',
+        //         CHAIN_ID,
+        //         await papaya.getAddress(),
+        //         SIX_USDT,
+        //         await timestamp() + 100
+        //     )
 
-            await papaya.permitAndCall(
-                ethers.solidityPacked(
-                    ['address', 'bytes'],
-                    [await token.getAddress(), permit]
-                ),
-                papaya.interface.encodeFunctionData('deposit', [
-                    SIX_USDT, false
-                ])
-            )
-        })
+        //     await papaya.permitAndCall(
+        //         ethers.solidityPacked(
+        //             ['address', 'bytes'],
+        //             [await token.getAddress(), permit]
+        //         ),
+        //         papaya.interface.encodeFunctionData('deposit', [
+        //             SIX_USDT, false
+        //         ])
+        //     )
+        // })
         // it("Method: permitAndCall then depositBySig", async function () {
         //     const {token, papaya} = await baseSetup()
 

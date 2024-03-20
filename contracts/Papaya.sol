@@ -3,10 +3,11 @@ pragma solidity 0.8.24;
 
 import { SafeERC20, IERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import { PermitAndCall } from "@1inch/solidity-utils/contracts/PermitAndCall.sol";
+import { PermitAndCall } from "@1inch/solidity-utils/contracts/mixins/PermitAndCall.sol";
+import { BySig, EIP712 } from "@1inch/solidity-utils/contracts/mixins/BySig.sol";
+
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { SignedMath } from "@openzeppelin/contracts/utils/math/SignedMath.sol";
-import { BySig, EIP712 } from "@1inch/solidity-utils/contracts/BySig.sol";
 import { Context } from "@openzeppelin/contracts/utils/Context.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
