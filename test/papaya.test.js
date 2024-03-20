@@ -148,33 +148,48 @@ describe('papaya test', function () {
             expect((await papaya.users(user_2.address)).incomeRate).to.be.eq(0n)
         })
         it("Method: liquidate", async function () {
+            const {token, papaya} = await baseSetup()
 
+            await token.transfer(user_1.address, ELEVEN_USDT)
+            await token.connect(user_1).approve(await papaya.getAddress(), ELEVEN_USDT)
+
+            await papaya.connect(user_1).deposit(ELEVEN_USDT, false)
+            await papaya.connect(admin).claimProjectId()
+
+            await papaya.connect(admin).setSettingsForUser(user_1.address, settings, FIRST_PROJECTID)
+            await papaya.connect(admin).setSettingsForUser(user_2.address, settings, FIRST_PROJECTID)
+
+            await papaya.connect(user_1).subscribe(user_2.address, SUB_RATE, FIRST_PROJECTID)
+
+            await time.increase(DAY)
+
+            await papaya.liquidate(user_1.address)
         })
-        // it("Method: permitAndCall then deposit", async function () {
-        //     const {token, papaya} = await baseSetup()
+        it("Method: permitAndCall then deposit", async function () {
+            const {token, papaya} = await baseSetup()
 
-        //     await token.transfer(user_1.address, SIX_USDT)
+            await token.transfer(user_1.address, SIX_USDT)
 
-        //     const permit = await getPermit(
-        //         user_1,
-        //         token,
-        //         '1',
-        //         CHAIN_ID,
-        //         await papaya.getAddress(),
-        //         SIX_USDT,
-        //         await timestamp() + 100
-        //     )
+            const permit = await getPermit(
+                user_1,
+                token,
+                '1',
+                CHAIN_ID,
+                await papaya.getAddress(),
+                SIX_USDT,
+                await timestamp() + 100
+            )
 
-        //     await papaya.permitAndCall(
-        //         ethers.solidityPacked(
-        //             ['address', 'bytes'],
-        //             [await token.getAddress(), permit]
-        //         ),
-        //         papaya.interface.encodeFunctionData('deposit', [
-        //             SIX_USDT, false
-        //         ])
-        //     )
-        // })
+            await papaya.permitAndCall(
+                ethers.solidityPacked(
+                    ['address', 'bytes'],
+                    [await token.getAddress(), permit]
+                ),
+                papaya.interface.encodeFunctionData('deposit', [
+                    SIX_USDT, false
+                ])
+            )
+        })
         // it("Method: permitAndCall then depositBySig", async function () {
         //     const {token, papaya} = await baseSetup()
 
