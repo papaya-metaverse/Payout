@@ -1,12 +1,14 @@
 require('@nomicfoundation/hardhat-verify');
 require('@nomicfoundation/hardhat-chai-matchers');
-// if(process.env.)
-require("hardhat-contract-sizer");
 require('hardhat-dependency-compiler');
 require('hardhat-deploy');
-require('hardhat-gas-reporter');
 require('hardhat-tracer');
 require('dotenv').config();
+
+if(process.env.TEST) {
+  require("hardhat-contract-sizer");
+  require('hardhat-gas-reporter');
+}
 
 module.exports = {
     tracer: {
