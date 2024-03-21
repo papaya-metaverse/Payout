@@ -1,6 +1,6 @@
 const hre = require('hardhat')
 const { ethers } = hre
-const { expect, time, getPermit, constants } = require('@1inch/solidity-utils')
+const { expect, time, getPermit, constants, buildBySigTraits } = require('@1inch/solidity-utils')
 const { baseSetup } = require('./helpers/Deploy') 
 
 async function timestamp() {
@@ -11,11 +11,15 @@ async function timestamp() {
 }
 
 describe('papaya test', function () {
-    const DAY = 86400n
+    const TWO_DAY = 172_800n
     const FIVE_USDT = 5_000_000n
     const SIX_USDT = 6_000_000n
     const ELEVEN_USDT = FIVE_USDT + SIX_USDT
+
     const SUB_RATE = 58n
+    const AUTHOR_INCOME_RATE = 46n
+    const LIQUIDATOR_BALANCE = 977542n
+
     const CHAIN_ID = 31337
 
     const FIRST_PROJECTID = 0
@@ -101,7 +105,7 @@ describe('papaya test', function () {
 
             await papaya.connect(user_1).deposit(SIX_USDT, false)
 
-            expect(await papaya.balanceOf(user_2.address)).to.be.eq(SIX_USDT)
+            expect(await papaya.balanceOf(user_1.address)).to.be.eq(SIX_USDT)
         
             await papaya.connect(user_1).pay(user_2.address, SIX_USDT)
 
@@ -123,7 +127,7 @@ describe('papaya test', function () {
             await papaya.connect(user_1).subscribe(user_2.address, SUB_RATE, FIRST_PROJECTID)
 
             expect((await papaya.users(user_1.address)).outgoingRate).to.be.eq(SUB_RATE)
-            expect((await papaya.users(user_2.address)).incomeRate).to.be.eq(SUB_RATE)
+            expect((await papaya.users(user_2.address)).incomeRate).to.be.eq(AUTHOR_INCOME_RATE)
         })
         it("Method: unsubscribe", async function () {
             const {token, papaya} = await baseSetup()
@@ -140,7 +144,7 @@ describe('papaya test', function () {
             await papaya.connect(user_1).subscribe(user_2.address, SUB_RATE, FIRST_PROJECTID)
 
             expect((await papaya.users(user_1.address)).outgoingRate).to.be.eq(SUB_RATE)
-            expect((await papaya.users(user_2.address)).incomeRate).to.be.eq(SUB_RATE)
+            expect((await papaya.users(user_2.address)).incomeRate).to.be.eq(AUTHOR_INCOME_RATE)
 
             await papaya.connect(user_1).unsubscribe(user_2.address)
 
@@ -161,9 +165,12 @@ describe('papaya test', function () {
 
             await papaya.connect(user_1).subscribe(user_2.address, SUB_RATE, FIRST_PROJECTID)
 
-            await time.increase(DAY)
+            await time.increase(TWO_DAY)
 
             await papaya.liquidate(user_1.address)
+
+            expect(await papaya.balanceOf(user_1.address)).to.be.eq(0n)
+            expect(await papaya.balanceOf(owner.address)).to.be.eq(LIQUIDATOR_BALANCE)
         })
         it("Method: permitAndCall then deposit", async function () {
             const {token, papaya} = await baseSetup()
@@ -180,7 +187,7 @@ describe('papaya test', function () {
                 await timestamp() + 100
             )
 
-            await papaya.permitAndCall(
+            await papaya.connect(user_1).permitAndCall(
                 ethers.solidityPacked(
                     ['address', 'bytes'],
                     [await token.getAddress(), permit]
@@ -190,43 +197,35 @@ describe('papaya test', function () {
                 ])
             )
         })
-        // it("Method: permitAndCall then depositBySig", async function () {
-        //     const {token, papaya} = await baseSetup()
+        it("Method: BySig then PermitAndCall then deposit", async function () {
+            const {token, papaya} = await baseSetup()
 
-        //     await token.transfer(user_1.address, SIX_USDT)
+            await token.transfer(user_1.address, SIX_USDT)
 
-        //     const permit = await getPermit(
-        //         user_1,
-        //         token,
-        //         '1',
-        //         CHAIN_ID,
-        //         await papaya.getAddress(),
-        //         SIX_USDT,
-        //         await timestamp() + 100
-        //     )
+            // const permit = await getPermit(
+            //     user_1,
+            //     token,
+            //     '1',
+            //     CHAIN_ID,
+            //     await papaya.getAddress(),
+            //     SIX_USDT,
+            //     await timestamp() + 100
+            // )
 
-        //     let nonce = await papaya.nonces(user_1.address)
+            // const signedCall = {
+            //     traits: buildBySigTraits({deadline: 0xffffffffff, nonceType: NonceType.Selector, nonce: 0}),
+            //     data: token.interface.encodeFunctionData('permitAndCall', permit),
+            // }
 
-        //     const depositData = {
-        //         sig: {
-        //             signer: user_1.address,
-        //             nonce: nonce,
-        //             executionFee: 0,
-        //         },
-        //         amount: SIX_USDT
-        //     }
-            
-        //     const deposit = await signDeposit(CHAIN_ID, await papaya.getAddress(), depositData, user_1)
+            // const signature = await user_1.signTypedData(
+            //     { name: 'Token', version: '1', chainId: await token.getChainId(), verifyingContract: await token.getAddress() },
+            //     { SignedCall: [{ name: 'traits', type: 'uint256' }, { name: 'data', type: 'bytes' }] },
+            //     signedCall
+            // )
 
-        //     await papaya.permitAndCall(
-        //         ethers.solidityPacked(
-        //             ['address', 'bytes'],
-        //             [await token.getAddress(), permit]
-        //         ),
-        //         papaya.interface.encodeFunctionData('depositBySig', [
-        //             depositData, deposit, false
-        //         ])
-        //     )
-        // })
+            // await 
+
+            // const user_1Signature = await 
+        })
     })
 })

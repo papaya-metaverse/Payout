@@ -5,7 +5,6 @@ import { SafeERC20, IERC20 } from "@1inch/solidity-utils/contracts/libraries/Saf
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import { PermitAndCall } from "@1inch/solidity-utils/contracts/mixins/PermitAndCall.sol";
 import { BySig, EIP712 } from "@1inch/solidity-utils/contracts/mixins/BySig.sol";
-
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { SignedMath } from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import { Context } from "@openzeppelin/contracts/utils/Context.sol";
@@ -25,7 +24,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     using Address for address payable;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    uint16 public constant FLOOR = 10000;
+    uint256 public constant FLOOR = 10000;
     uint256 public constant MAX_PROTOCOL_FEE = FLOOR * 20 / 100;
 
     uint256 public constant APPROX_LIQUIDATE_GAS = 120000;
@@ -107,6 +106,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         onlyValidSettings(settings)
     {
         defaultSettings[projectId] = settings;
+
         emit SetDefaultSettings(projectId, settings.projectFee);
     }
 
@@ -124,6 +124,10 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         return uint256(SignedMath.max(users[account].balanceOf(), int(0)));
     }
 
+    function allProjectOwners() external view returns(address[] memory) {
+        return projectOwners;
+    } 
+
     function subscriptions(address from, address to) external view returns (bool, uint256 encodedRates) {
         return _subscriptions[from].tryGet(to);
     }
@@ -136,10 +140,6 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         for (uint256 i = 0; i < to.length; i++) {
             encodedRates[i] = user_subscriptions.get(to[i]);
         }
-    }
-
-    function allProjectOwners() external view returns(address[] memory) {
-        return projectOwners;
     } 
 
     function deposit(uint256 amount, bool isPermit2) external {
