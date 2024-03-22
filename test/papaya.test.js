@@ -1,7 +1,38 @@
 const hre = require('hardhat')
 const { ethers } = hre
-const { expect, time, getPermit, constants, buildBySigTraits } = require('@1inch/solidity-utils')
+const { expect, time, getPermit, constants } = require('@1inch/solidity-utils')
 const { baseSetup } = require('./helpers/Deploy') 
+
+const NonceType = {
+    Account: 0n,
+    Selector: 1n,
+    Unique: 2n,
+}
+
+function buildBySigTraits({
+    nonceType = 0n,
+    deadline = 0n,
+    relayer = constants.ZERO_ADDRESS.toString(),
+    nonce = 0n,
+} = {}) {
+    if (nonceType > 3) {
+        throw new Error('Wrong nonce type, it should be less than 4');
+    }
+    if (deadline > 0xffffffffff) {
+        throw new Error('Wrong deadline, it should be less than 0xffffffff');
+    }
+    if (relayer.length > 42) {
+        throw new Error('Wrong relayer address, it should be less than 42 symbols');
+    }
+    if (nonce > 0xffffffffffffffffffffffffffffffffn) {
+        throw new Error('Wrong nonce, it should not be more than 128 bits');
+    }
+
+    return (BigInt(nonceType) << 254n) +
+            (BigInt(deadline) << 208n) +
+            ((BigInt(relayer) & 0xffffffffffffffffffffn) << 128n) +
+            BigInt(nonce);
+}
 
 async function timestamp() {
     let blockNumber = await ethers.provider.getBlockNumber()
@@ -202,30 +233,80 @@ describe('papaya test', function () {
 
             await token.transfer(user_1.address, SIX_USDT)
 
-            // const permit = await getPermit(
-            //     user_1,
-            //     token,
-            //     '1',
-            //     CHAIN_ID,
-            //     await papaya.getAddress(),
-            //     SIX_USDT,
-            //     await timestamp() + 100
-            // )
+            const permit = await getPermit(
+                user_1,
+                token,
+                '1',
+                CHAIN_ID,
+                await papaya.getAddress(),
+                SIX_USDT,
+                await timestamp() + 100
+            )
 
-            // const signedCall = {
-            //     traits: buildBySigTraits({deadline: 0xffffffffff, nonceType: NonceType.Selector, nonce: 0}),
-            //     data: token.interface.encodeFunctionData('permitAndCall', permit),
-            // }
+            const signedCall = {
+                traits: buildBySigTraits({deadline: 0xffffffffff, nonceType: NonceType.Selector, nonce: 0}),
+                data: papaya.interface.encodeFunctionData('deposit', [SIX_USDT, false]),
+            }
 
-            // const signature = await user_1.signTypedData(
-            //     { name: 'Token', version: '1', chainId: await token.getChainId(), verifyingContract: await token.getAddress() },
-            //     { SignedCall: [{ name: 'traits', type: 'uint256' }, { name: 'data', type: 'bytes' }] },
-            //     signedCall
-            // )
+            const signature = await user_1.signTypedData(
+                { name: 'PapayaMock', version: '1', chainId: CHAIN_ID, verifyingContract: await papaya.getAddress() },
+                { SignedCall: [{ name: 'traits', type: 'uint256' }, { name: 'data', type: 'bytes' }] },
+                signedCall
+            )
 
-            // await 
+            await papaya.connect(user_1).permitAndCall(
+                ethers.solidityPacked(
+                    ['address', 'bytes'],
+                    [await token.getAddress(), permit]
+                ),
+                papaya.interface.encodeFunctionData('bySig', [
+                    user_1.address, signedCall, signature
+                ])
+            )
 
-            // const user_1Signature = await 
+            expect(await token.balanceOf(user_1.address)).to.be.eq(0n)
+            expect(await papaya.balanceOf(user_1.address)).to.be.eq(SIX_USDT)
+        })
+        it("Method: BySig then SponsoredCall then PermitAndCall then deposit", async function () {
+            const {token, papaya} = await baseSetup()
+
+            await token.transfer(user_1.address, SIX_USDT)
+
+            const permit = await getPermit(
+                user_1,
+                token,
+                '1',
+                CHAIN_ID,
+                await papaya.getAddress(),
+                SIX_USDT,
+                await timestamp() + 100
+            ) 
+
+            const tokenPermit = ethers.solidityPacked(
+                ['address', 'bytes'],
+                [await token.getAddress(), permit]
+            )
+
+            const depositCall = papaya.interface.encodeFunctionData('deposit', [SIX_USDT, false])
+
+            const permitAndCall = papaya.interface.encodeFunctionData('permitAndCall', [tokenPermit, depositCall])
+            const sponsoredCall = {
+                traits: buildBySigTraits({deadline: 0xffffffffff, nonceType: NonceType.Selector, nonce: 0}),
+                data: papaya.interface.encodeFunctionData('sponsoredCall', [await token.getAddress(), SIX_USDT - FIVE_USDT, permitAndCall, "0x"]),
+            }
+
+            const signature = await user_1.signTypedData(
+                { name: 'PapayaMock', version: '1', chainId: CHAIN_ID, verifyingContract: await papaya.getAddress() },
+                { SignedCall: [{ name: 'traits', type: 'uint256' }, { name: 'data', type: 'bytes' }] },
+                sponsoredCall
+            )
+
+            await papaya.bySig(
+                user_1.address, sponsoredCall, signature
+            )
+
+            expect(await token.balanceOf(user_1.address)).to.be.eq(0n)
+            expect(await papaya.balanceOf(user_1.address)).to.be.eq(FIVE_USDT)
         })
     })
 })

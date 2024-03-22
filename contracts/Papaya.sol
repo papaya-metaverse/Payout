@@ -27,8 +27,8 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     uint256 public constant FLOOR = 10000;
     uint256 public constant MAX_PROTOCOL_FEE = FLOOR * 20 / 100;
 
-    uint256 public constant APPROX_LIQUIDATE_GAS = 120000;
-    uint256 public constant APPROX_SUBSCRIPTION_GAS = 8000;
+    uint256 public constant APPROX_LIQUIDATE_GAS = 140000;
+    uint256 public constant APPROX_SUBSCRIPTION_GAS = 10000;
     uint8 public constant COIN_DECIMALS = 18;
     uint8 public constant SUBSCRIPTION_THRESHOLD = 100;
 
