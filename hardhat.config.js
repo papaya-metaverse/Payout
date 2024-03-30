@@ -55,8 +55,8 @@ module.exports = {
       apiKey:{
         polygonMumbai: `${process.env.POLYGONSCAN_API_KEY}` || '',
         polygon: `${process.env.POLYGONSCAN_API_KEY}` || '',
-        bsc: `${process.env.BSC_API_KEY}` || '',
-        bscTestnet: `${process.env.BSC_API_KEY}` || ''
+        bsc: `${process.env.BSCSCAN_API_KEY}` || '',
+        bscTestnet: `${process.env.BSCSCAN_API_KEY}` || ''
       }
     },
     defaultNetwork: "hardhat",
@@ -112,7 +112,8 @@ module.exports = {
         url: `https://data-seed-prebsc-1-s1.bnbchain.org:8545`,
         accounts: {
           mnemonic: `${process.env.SEED_PHRASE_DEPLOYER}`,
-        }
+        },
+        gasPrice: 10000000000
       }
     },
 };

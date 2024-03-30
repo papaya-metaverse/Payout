@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
-import "hardhat/console.sol";
-
 library UserLib {
     error TopUpBalance();
     error InsufficialBalance();
     error ReduceTheAmount();
+    error SafeCastOverflowedUintToInt(uint value);
 
     uint256 constant SAFE_LIQUIDATION_TIME = 2 days;
     uint256 constant LIQUIDATION_TIME = 1 days;
@@ -16,6 +15,16 @@ library UserLib {
         int256 incomeRate; // changes to this field requires _syncBalance() call
         int256 outgoingRate; // changes to this field requires _syncBalance() call
         uint256 updated;
+    }
+
+    modifier checkUint96(uint96 value) {
+        if(value > uint96(type(int96).max)) revert SafeCastOverflowedUintToInt(value);
+        _;
+    }
+
+    modifier checkUint256(uint256 value) {
+        if(value > uint256(type(int256).max)) revert SafeCastOverflowedUintToInt(value); 
+        _;
     }
 
     function balanceOf(User storage user) internal view returns (int256) {
@@ -37,7 +46,7 @@ library UserLib {
         }
     }
 
-    function increaseOutgoingRate(User storage user, uint96 diff, int256 threshold) internal {
+    function increaseOutgoingRate(User storage user, uint96 diff, int256 threshold) internal checkUint96(diff) {
         _syncBalance(user);
         user.outgoingRate += int96(diff);
         if (isSafeLiquidatable(user, threshold)) revert TopUpBalance();
@@ -48,7 +57,7 @@ library UserLib {
         user.outgoingRate -= int96(diff);
     }
 
-    function increaseIncomeRate(User storage user, uint96 diff) internal {
+    function increaseIncomeRate(User storage user, uint96 diff) internal checkUint96(diff) {
         _syncBalance(user);
         user.incomeRate += int96(diff);
     }
@@ -59,11 +68,11 @@ library UserLib {
         if (isSafeLiquidatable(user, threshold)) revert TopUpBalance();
     }
 
-    function increaseBalance(User storage user, uint256 amount) internal {
+    function increaseBalance(User storage user, uint256 amount) internal checkUint256(amount) {
         user.balance += int(amount);
     }
 
-    function decreaseBalance(User storage user, uint256 amount, int256 threshold) internal {
+    function decreaseBalance(User storage user, uint256 amount, int256 threshold) internal checkUint256(amount) {
         _syncBalance(user);
         if (user.balance < int(amount)) revert InsufficialBalance();
         user.balance -= int(amount);

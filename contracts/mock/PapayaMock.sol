@@ -9,7 +9,6 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { SignedMath } from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import { Context } from "@openzeppelin/contracts/utils/Context.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
@@ -18,7 +17,6 @@ import "../library/UserLib.sol";
 
 // NOTE: Default settings for projectId are stored in projectAdmin[projectId].settings
 contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
-    using SafeCast for uint256;
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
     using Address for address payable;
@@ -27,7 +25,7 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     uint256 public constant FLOOR = 10000;
     uint256 public constant MAX_PROTOCOL_FEE = FLOOR * 20 / 100;
 
-    uint256 public constant APPROX_LIQUIDATE_GAS = 140000;
+    uint256 public constant APPROX_LIQUIDATE_GAS = 140000; 
     uint256 public constant APPROX_SUBSCRIPTION_GAS = 10000;
     uint8 public constant COIN_DECIMALS = 18;
     uint8 public constant SUBSCRIPTION_THRESHOLD = 100;
@@ -37,6 +35,8 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
 
     IERC20 public immutable TOKEN;
     uint8 public immutable TOKEN_DECIMALS;
+
+    uint256 public LIQUIDATION_MULTIPLIER = 0;
 
     address public protocolAdmin;
 
@@ -50,7 +50,7 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     mapping(uint256 projectId => mapping(address account => Settings)) public userSettings;
 
     modifier onlyValidProjectId(uint256 projectId) {
-        if (projectId > projectOwners.length) revert InvalidProjectId(projectId);
+        if (projectId >= projectOwners.length) revert InvalidProjectId(projectId);
         _;
     }
 
@@ -61,6 +61,11 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
 
     modifier onlyValidSettings(Settings calldata settings) {
         if (settings.projectFee > MAX_PROTOCOL_FEE) revert WrongPercent();
+        _;
+    }
+
+    modifier onlyValidAccess(address account) {
+        if (_msgSender() == account) revert NotLegal();
         _;
     }
 
@@ -81,7 +86,6 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         protocolAdmin = _msgSender();
     }
 
-    // TODO: consider "address to"
     function rescueFunds(IERC20 token, uint256 amount) external onlyOwner {
         if (address(token) == address(0)) {
             payable(_msgSender()).sendValue(amount);
@@ -90,6 +94,14 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
                 revert UserLib.InsufficialBalance();
             }
             token.safeTransfer(protocolAdmin, amount);
+        }
+    }
+
+    function updateLiquidationMultiplier(uint256 multiplier) external onlyOwner {
+        if(multiplier > 0) {
+            LIQUIDATION_MULTIPLIER = multiplier;
+        } else {
+            revert NotLegal();
         }
     }
 
@@ -180,6 +192,7 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     function subscribe(address author, uint96 subscriptionRate, uint256 projectId)
         external
         onlyValidProjectId(projectId)
+        onlyValidAccess(author)
     {
         (bool success, uint256 encodedRates) = _subscriptions[_msgSender()].tryGet(author);
         if (success) {
@@ -205,7 +218,7 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         _unsubscribeEffects(_msgSender(), author, encodedRates);
     }
 
-    function liquidate(address account) external {
+    function liquidate(address account) external onlyValidAccess(account) {
         UserLib.User storage user = users[account];
         if (!user.isLiquidatable(_liquidationThreshold(account))) revert NotLiquidatable();
 
@@ -219,20 +232,20 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
 
         emit Liquidate(account, _msgSender());
     }
-
+    
     function _liquidationThreshold(address user) internal view returns (int256) {
-        (, int256 tokenPrice, , , ) = TOKEN_PRICE_FEED.latestRoundData();
-        (, int256 coinPrice, , , ) = COIN_PRICE_FEED.latestRoundData();
+        (, int256 tokenPrice, , , ) = TOKEN_PRICE_FEED.latestRoundData(); 
+        (, int256 coinPrice, , , ) = COIN_PRICE_FEED.latestRoundData(); 
 
-        uint256 expectedNativeAssetCost = tx.gasprice *
+        uint256 expectedNativeAssetCost = tx.gasprice * 10 ** (LIQUIDATION_MULTIPLIER) *
             (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[user].length());
 
         uint256 executionPrice = expectedNativeAssetCost * uint256(coinPrice);
 
-        if (TOKEN_DECIMALS < COIN_DECIMALS) {
+        if (TOKEN_DECIMALS < COIN_DECIMALS) { 
             return int256(executionPrice) / tokenPrice / int256(10 ** (COIN_DECIMALS - TOKEN_DECIMALS));
         } else {
-            return int256(executionPrice) / tokenPrice;
+            return int256(executionPrice) / tokenPrice; 
         }
     }
 
@@ -256,7 +269,6 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
 
         emit Unsubscribe(user, author, encodedRates);
     }
-
     function _update(address from, address to, uint256 amount) private {
         if (from == to || amount == 0) return;
 

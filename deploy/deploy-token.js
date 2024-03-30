@@ -10,8 +10,8 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     const { deploy } = deployments;
     const { deployer } = await getNamedAccounts();
 
-    const name = "TEST_USDC"
-    const symbol = "TST_USDC"
+    const name = "TEST_USDT"
+    const symbol = "TST_USDT"
     const totalSupply = ethers.parseEther("2850000000000")
     const TOKEN_DECIMALS = 6
     
