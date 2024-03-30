@@ -25,7 +25,7 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     uint256 public constant FLOOR = 10000;
     uint256 public constant MAX_PROTOCOL_FEE = FLOOR * 20 / 100;
 
-    uint256 public constant APPROX_LIQUIDATE_GAS = 140000; 
+    uint256 public constant APPROX_LIQUIDATE_GAS = 140000;
     uint256 public constant APPROX_SUBSCRIPTION_GAS = 10000;
     uint8 public constant COIN_DECIMALS = 18;
     uint8 public constant SUBSCRIPTION_THRESHOLD = 100;
@@ -36,7 +36,7 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     IERC20 public immutable TOKEN;
     uint8 public immutable TOKEN_DECIMALS;
 
-    uint256 public LIQUIDATION_MULTIPLIER = 0;
+    uint256 public LIQUIDATION_MULTIPLIER;
 
     address public protocolAdmin;
 
@@ -64,7 +64,7 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         _;
     }
 
-    modifier onlyValidAccess(address account) {
+    modifier onlyNotSender(address account) {
         if (_msgSender() == account) revert NotLegal();
         _;
     }
@@ -98,11 +98,11 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     }
 
     function updateLiquidationMultiplier(uint256 multiplier) external onlyOwner {
-        if(multiplier > 0) {
             LIQUIDATION_MULTIPLIER = multiplier;
-        } else {
-            revert NotLegal();
-        }
+    }
+
+    function updateProtocolAdmin(address newAdmin) external onlyOwner {
+        protocolAdmin = newAdmin;
     }
 
     function claimProjectId() external {
@@ -192,7 +192,7 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     function subscribe(address author, uint96 subscriptionRate, uint256 projectId)
         external
         onlyValidProjectId(projectId)
-        onlyValidAccess(author)
+        onlyNotSender(author)
     {
         (bool success, uint256 encodedRates) = _subscriptions[_msgSender()].tryGet(author);
         if (success) {
@@ -218,7 +218,7 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         _unsubscribeEffects(_msgSender(), author, encodedRates);
     }
 
-    function liquidate(address account) external onlyValidAccess(account) {
+    function liquidate(address account) external onlyNotSender(account) {
         UserLib.User storage user = users[account];
         if (!user.isLiquidatable(_liquidationThreshold(account))) revert NotLiquidatable();
 
@@ -232,7 +232,7 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
 
         emit Liquidate(account, _msgSender());
     }
-    
+
     function _liquidationThreshold(address user) internal view returns (int256) {
         (, int256 tokenPrice, , , ) = TOKEN_PRICE_FEED.latestRoundData(); 
         (, int256 coinPrice, , , ) = COIN_PRICE_FEED.latestRoundData(); 

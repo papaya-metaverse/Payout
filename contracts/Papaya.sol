@@ -36,7 +36,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     IERC20 public immutable TOKEN;
     uint8 public immutable TOKEN_DECIMALS;
 
-    uint256 public LIQUIDATION_MULTIPLIER = 0;
+    uint256 public LIQUIDATION_MULTIPLIER;
 
     address public protocolAdmin;
 
@@ -64,7 +64,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         _;
     }
 
-    modifier onlyValidAccess(address account) {
+    modifier onlyNotSender(address account) {
         if (_msgSender() == account) revert NotLegal();
         _;
     }
@@ -98,11 +98,11 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     }
 
     function updateLiquidationMultiplier(uint256 multiplier) external onlyOwner {
-        if(multiplier > 0) {
-            LIQUIDATION_MULTIPLIER = multiplier;
-        } else {
-            revert NotLegal();
-        }
+        LIQUIDATION_MULTIPLIER = multiplier;
+    }
+
+    function updateProtocolAdmin(address newAdmin) external onlyOwner {
+        protocolAdmin = newAdmin;
     }
 
     function claimProjectId() external {
@@ -192,7 +192,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     function subscribe(address author, uint96 subscriptionRate, uint256 projectId)
         external
         onlyValidProjectId(projectId)
-        onlyValidAccess(author)
+        onlyNotSender(author)
     {
         (bool success, uint256 encodedRates) = _subscriptions[_msgSender()].tryGet(author);
         if (success) {
@@ -218,7 +218,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         _unsubscribeEffects(_msgSender(), author, encodedRates);
     }
 
-    function liquidate(address account) external onlyValidAccess(account) {
+    function liquidate(address account) external onlyNotSender(account) {
         UserLib.User storage user = users[account];
         if (!user.isLiquidatable(_liquidationThreshold(account))) revert NotLiquidatable();
 
