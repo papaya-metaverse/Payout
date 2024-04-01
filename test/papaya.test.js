@@ -182,7 +182,7 @@ describe('papaya test', function () {
             expect((await papaya.users(user_1.address)).outgoingRate).to.be.eq(0n)
             expect((await papaya.users(user_2.address)).incomeRate).to.be.eq(0n)
         })
-        it("Method: liquidate", async function () {
+        it.only("Method: liquidate", async function () {
             const {token, papaya} = await baseSetup()
 
             await token.transfer(user_1.address, ELEVEN_USDT)

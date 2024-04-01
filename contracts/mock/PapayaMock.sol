@@ -15,6 +15,8 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "../interfaces/IPapaya.sol";
 import "../library/UserLib.sol";
 
+import "hardhat/console.sol";
+
 // NOTE: Default settings for projectId are stored in projectAdmin[projectId].settings
 contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     using SafeERC20 for IERC20;
@@ -98,7 +100,7 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     }
 
     function updateLiquidationMultiplier(uint256 multiplier) external onlyOwner {
-            LIQUIDATION_MULTIPLIER = multiplier;
+        LIQUIDATION_MULTIPLIER = multiplier;
     }
 
     function updateProtocolAdmin(address newAdmin) external onlyOwner {
@@ -240,7 +242,14 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         uint256 expectedNativeAssetCost = tx.gasprice * 10 ** (LIQUIDATION_MULTIPLIER) *
             (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[user].length());
 
+        console.log("ExpectedNativeAssetCost: ", expectedNativeAssetCost);
+
         uint256 executionPrice = expectedNativeAssetCost * uint256(coinPrice);
+
+        console.log("ExecutionPrice: ", executionPrice);
+
+        console.log("User`s balance: ");
+        console.logInt(int256(executionPrice) / tokenPrice);
 
         if (TOKEN_DECIMALS < COIN_DECIMALS) { 
             return int256(executionPrice) / tokenPrice / int256(10 ** (COIN_DECIMALS - TOKEN_DECIMALS));
