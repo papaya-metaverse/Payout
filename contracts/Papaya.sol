@@ -50,7 +50,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     mapping(uint256 projectId => mapping(address account => Settings)) public userSettings;
 
     modifier onlyValidProjectId(uint256 projectId) {
-        if (projectId >= projectOwners.length) revert InvalidProjectId(projectId);
+        if (projectId > projectOwners.length) revert InvalidProjectId(projectId);
         _;
     }
 
@@ -106,9 +106,9 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
     }
 
     function claimProjectId() external {
-        projectOwners.push(_msgSender());
+        emit ProjectIdClaimed(projectOwners.length, _msgSender());
 
-        emit ProjectIdClaimed(projectOwners.length - 1, _msgSender());
+        projectOwners.push(_msgSender());
     }
 
     function setDefaultSettings(Settings calldata settings, uint256 projectId)
