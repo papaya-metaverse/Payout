@@ -182,7 +182,7 @@ describe('papaya test', function () {
             expect((await papaya.users(user_1.address)).outgoingRate).to.be.eq(0n)
             expect((await papaya.users(user_2.address)).incomeRate).to.be.eq(0n)
         })
-        it.only("Method: liquidate", async function () {
+        it("Method: liquidate", async function () {
             const {token, papaya} = await baseSetup()
 
             await token.transfer(user_1.address, ELEVEN_USDT)
@@ -203,7 +203,7 @@ describe('papaya test', function () {
             expect(await papaya.balanceOf(user_1.address)).to.be.eq(0n)
             expect(await papaya.balanceOf(owner.address)).to.be.eq(LIQUIDATOR_BALANCE)
         })
-        it("Method: permitAndCall then deposit", async function () {
+        it.only("Method: permitAndCall then deposit", async function () {
             const {token, papaya} = await baseSetup()
 
             await token.transfer(user_1.address, SIX_USDT)
