@@ -30,6 +30,8 @@ interface IPapaya {
     function updateLiquidationMultiplier(uint256 multiplier) external;
     function updateProtocolAdmin(address newAdmin) external;
     function rescueFunds(IERC20 token, uint256 amount) external;
+    
+    function claimProjectId() external;
     function setDefaultSettings(Settings calldata settings, uint256 projectId) external;
     function setSettingsForUser(address user, Settings calldata settings, uint256 projectId) external;
 
