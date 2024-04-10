@@ -32,63 +32,45 @@ async function deployTokenPriceFeed() {
     return contract
 }
 
-async function deployPayout(
-    admin,
-    protocolSigner,
-    protocolWalletAddr,
+async function deployPapaya(
     tokenAddress,
     nativePriceFeedAddr,
     tokenPriceFeedAddr
 ) {
     const args = [
-        admin,
-        protocolSigner,
-        protocolWalletAddr,
         nativePriceFeedAddr,
         tokenPriceFeedAddr,
         tokenAddress,
         TOKEN_DECIMALS
     ]
 
-    const contract = await ethers.deployContract("PayoutMock", args)
+    const contract = await ethers.deployContract("PapayaMock", args)
 
     return contract 
 }
 
-async function baseSetup(
-    protocolSigner,
-    protocolWalletAddr,
-) {
+async function baseSetup() {
     const coinPriceFeed = await deployNativePriceFeed()
     const tokenPriceFeed = await deployTokenPriceFeed()
 
     const token = await deployToken()
 
-    const payout = await deployPayout(
-        protocolWalletAddr,
-        protocolSigner,
-        protocolWalletAddr,
+    const papaya = await deployPapaya(
         await token.getAddress(),
         await coinPriceFeed.getAddress(),
         await tokenPriceFeed.getAddress()
     )
 
-    return { token, payout }
+    return { token, papaya }
 }
 
-async function deployAPayout(
-    admin,
-    protocolSigner,
-    protocolWalletAddr,
+async function deployAPapaya(
     tokenAddress,
     nativePriceFeedAddr,
     tokenPriceFeedAddr,
     lendingpool
 ) {
     const args = [
-        admin,
-        protocolSigner,
-        protocolWalletAddr,
         nativePriceFeedAddr,
         tokenPriceFeedAddr,
         tokenAddress,
@@ -96,7 +78,7 @@ async function deployAPayout(
         lendingpool
     ]
 
-    const contract = await ethers.deployContract("APayoutMock", args)
+    const contract = await ethers.deployContract("APapayaMock", args)
 
     return contract 
 }
@@ -140,10 +122,7 @@ async function deployLendingPool(
     return contract
 }
 
-async function baseASetup(
-    protocolSigner,
-    protocolWalletAddr,
-) {
+async function baseASetup() {
     const token = await deployToken()
     const coinPriceFeed = await deployNativePriceFeed()
     const tokenPriceFeed = await deployTokenPriceFeed()
@@ -153,17 +132,14 @@ async function baseASetup(
 
     await lendingpool.updateAToken(await token.getAddress(), await aToken.getAddress())
 
-    const aPayout = await deployAPayout(
-        protocolWalletAddr,
-        protocolSigner,
-        protocolWalletAddr,
+    const aPapaya = await deployAPapaya(
         await aToken.getAddress(),
         await coinPriceFeed.getAddress(),
         await tokenPriceFeed.getAddress(),
         await lendingpool.getAddress()
     )
 
-    return { token, lendingpool, aToken, aPayout }
+    return { token, lendingpool, aToken, aPapaya }
 }
 
 module.exports = {

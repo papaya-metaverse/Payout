@@ -17,7 +17,7 @@
     "test/*.js"
   ],
   "dependencies": {
-    "@1inch/solidity-utils": "3.7.1",
+    "@1inch/solidity-utils": "https://github.com/1inch/solidity-utils.git#master",
     "@aave/protocol-v2": "^1.0.1",
     "@chainlink/contracts": "^0.8.0",
     "@openzeppelin/contracts": "5.0.1",
@@ -45,9 +45,9 @@
     "hardhat-gas-reporter": "1.0.9",
     "hardhat-tracer": "2.7.0",
     "rimraf": "5.0.5",
-    "solc": "0.8.20",
+    "solc": "0.8.24",
     "solhint": "4.1.1",
-    "solidity-coverage": "0.8.5",
+    "solidity-coverage": "0.8.7",
     "solidity-docgen": "0.5.17"
   },
   "scripts": {

@@ -3,13 +3,13 @@ pragma solidity 0.8.24;
 import {SafeERC20} from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
 import "./interfaces/ILendingPool.sol";
 import "./library/UserLib.sol";
-import "./Payout.sol";
+import "./Papaya.sol";
 
 interface IAToken {
     function UNDERLYING_ASSET_ADDRESS() external view returns (IERC20);
 }
 
-contract APayout is Payout {
+contract APapaya is Papaya {
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
 
@@ -19,19 +19,13 @@ contract APayout is Payout {
     uint16 public refferal;
 
     constructor(
-        address admin,
-        address protocolSigner_,
-        address protocolWallet_,
         address CHAIN_PRICE_FEED_,
         address TOKEN_PRICE_FEED_,
         address TOKEN_,
         uint8 TOKEN_DECIMALS_,
         ILendingPool LENDING_POOL_
     )
-        Payout(
-            admin,
-            protocolSigner_,
-            protocolWallet_,
+        Papaya(
             CHAIN_PRICE_FEED_,
             TOKEN_PRICE_FEED_,
             TOKEN_,
@@ -64,8 +58,8 @@ contract APayout is Payout {
     }
 
     function withdrawUnderlying(uint256 amount) external {
-        LENDING_POOL.withdraw(address(UNDERLYING_TOKEN), amount, msg.sender);
+        LENDING_POOL.withdraw(address(UNDERLYING_TOKEN), amount, _msgSender());
 
-        _withdraw(UNDERLYING_TOKEN, amount, msg.sender);
+        _withdraw(UNDERLYING_TOKEN, address(this), _msgSender(), amount);
     }
 }

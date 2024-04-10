@@ -1,79 +1,88 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
-import "../abstract/PayoutSigVerifier.sol";
-
 library UserLib {
     error TopUpBalance();
     error InsufficialBalance();
     error ReduceTheAmount();
+    error SafeCastOverflowedUintToInt(uint value);
 
     uint256 constant SAFE_LIQUIDATION_TIME = 2 days;
     uint256 constant LIQUIDATION_TIME = 1 days;
 
-    uint16 public constant FLOOR = 10000;
-
     struct User {
         int256 balance;
-        uint256 incomeRate; // changes to this field requires _syncBalance() call
-        uint256 outgoingRate; // changes to this field requires _syncBalance() call
-        uint40 updTimestamp;
-        PayoutSigVerifier.Settings settings;
+        int256 incomeRate; // changes to this field requires _syncBalance() call
+        int256 outgoingRate; // changes to this field requires _syncBalance() call
+        uint256 updated;
     }
 
-    function setSettings(
-        User storage user,
-        PayoutSigVerifier.Settings calldata settings,
-        User storage protocol
-    ) internal {
-        _syncBalance(user, protocol);
-        user.settings = settings;
+    modifier checkUint96(uint96 value) {
+        if(value > uint96(type(int96).max)) revert SafeCastOverflowedUintToInt(value);
+        _;
     }
 
-    function increaseOutgoingRate(User storage user, uint96 diff, int256 threshold, User storage protocol) internal {
-        _syncBalance(user, protocol);
-        user.outgoingRate += diff;
+    modifier checkUint256(uint256 value) {
+        if(value > uint256(type(int256).max)) revert SafeCastOverflowedUintToInt(value); 
+        _;
+    }
+
+    function balanceOf(User storage user) internal view returns (int256) {
+        return balanceOf(user, 0);
+    }
+
+    function balanceOf(User storage user, uint256 afterDelay) internal view returns (int256) {
+        uint256 timePassed = block.timestamp - user.updated + afterDelay;
+        return user.balance + (user.incomeRate - user.outgoingRate) * int256(timePassed);
+    }
+
+    function _syncBalance(User storage user) private {
+        int256 balance = balanceOf(user);
+        if (balance != user.balance) {
+            user.balance = balance;
+        }
+        if (user.updated != block.timestamp) {
+            user.updated = block.timestamp;
+        }
+    }
+
+    function increaseOutgoingRate(User storage user, uint96 diff, int256 threshold) internal checkUint96(diff) {
+        _syncBalance(user);
+        user.outgoingRate += int96(diff);
         if (isSafeLiquidatable(user, threshold)) revert TopUpBalance();
     }
 
-    function decreaseOutgoingRate(User storage user, uint96 diff, User storage protocol) internal {
-        _syncBalance(user, protocol);
-        user.outgoingRate -= diff;
+    function decreaseOutgoingRate(User storage user, uint96 diff) internal {
+        _syncBalance(user);
+        user.outgoingRate -= int96(diff);
     }
 
-    function increaseIncomeRate(User storage user, uint96 diff, User storage protocol) internal {
-        _syncBalance(user, protocol);
-        user.incomeRate += diff;
+    function increaseIncomeRate(User storage user, uint96 diff) internal checkUint96(diff) {
+        _syncBalance(user);
+        user.incomeRate += int96(diff);
     }
 
-    function decreaseIncomeRate(User storage user, uint96 diff, int256 threshold, User storage protocol) internal {
-        _syncBalance(user, protocol);
-        user.incomeRate -= diff;
+    function decreaseIncomeRate(User storage user, uint96 diff, int256 threshold) internal {
+        _syncBalance(user);
+        user.incomeRate -= int96(diff);
         if (isSafeLiquidatable(user, threshold)) revert TopUpBalance();
     }
 
-    function increaseBalance(User storage user, uint256 amount) internal {
+    function increaseBalance(User storage user, uint256 amount) internal checkUint256(amount) {
         user.balance += int(amount);
     }
 
-    function decreaseBalance(User storage user, User storage protocol, uint256 amount, int256 threshold) internal {
-        _syncBalance(user, protocol);
+    function decreaseBalance(User storage user, uint256 amount, int256 threshold) internal checkUint256(amount) {
+        _syncBalance(user);
         if (user.balance < int(amount)) revert InsufficialBalance();
         user.balance -= int(amount);
         if (isSafeLiquidatable(user, threshold)) revert ReduceTheAmount();
     }
 
-    function drainBalance(User storage user, User storage liquidator) internal {
-        liquidator.balance += user.balance;
+    function drainBalance(User storage user, User storage liquidator) internal returns(int256 balance) {
+        balance = user.balance;
+        liquidator.balance += balance;
         user.balance = 0;
-    }
-
-    function balanceOf(User storage user) internal view returns (int256 balance) {
-        (balance, ) = _fullBalanceOf(user, 0);
-    }
-
-    function balanceOf(User storage user, uint256 afterDelay) internal view returns (int256 balance) {
-        (balance, ) = _fullBalanceOf(user, afterDelay);
     }
 
     function isSafeLiquidatable(User storage user, int256 threshold) internal view returns (bool) {
@@ -85,33 +94,7 @@ library UserLib {
     }
 
     function _isLiquidatable(User storage user, int256 threshold, uint256 afterDelay) private view returns (bool) {
-        (int256 currentRate, ) = _currentRateAndProtocolFee(user);
+        int256 currentRate = int256(user.incomeRate) - int256(user.outgoingRate);
         return currentRate < 0 && balanceOf(user, afterDelay) < threshold;
-    }
-
-    function _currentRateAndProtocolFee(User storage user) private view returns (int256, uint256) {
-        return (
-            int256((int256(user.incomeRate) * int16(user.settings.userFee)) / int16(FLOOR) - int256(user.outgoingRate)),
-            uint((user.incomeRate * user.settings.protocolFee) / FLOOR)
-        );
-    }
-
-    function _fullBalanceOf(
-        User storage user,
-        uint256 afterDelay
-    ) private view returns (int256 balance, uint256 protocolFee) {
-        if (user.updTimestamp == uint48(block.timestamp) || user.updTimestamp == 0) return (user.balance, 0);
-        (int256 currentRate, uint256 protocolRate) = _currentRateAndProtocolFee(user);
-        if (currentRate == 0 && protocolRate == 0) return (user.balance, 0);
-        uint256 timePassed = block.timestamp - user.updTimestamp + afterDelay;
-        balance = user.balance + currentRate * int256(timePassed);
-        protocolFee = protocolRate * timePassed;
-    }
-
-    function _syncBalance(User storage user, User storage protocol) private {
-        (int256 balance, uint256 protocolFee) = _fullBalanceOf(user, 0);
-        if (balance != user.balance) user.balance = balance;
-        if (protocolFee > 0) protocol.balance += int256(protocolFee);
-        user.updTimestamp = uint40(block.timestamp);
     }
 }
