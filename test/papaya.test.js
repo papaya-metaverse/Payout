@@ -203,7 +203,7 @@ describe('papaya test', function () {
             expect(await papaya.balanceOf(user_1.address)).to.be.eq(0n)
             expect(await papaya.balanceOf(owner.address)).to.be.eq(LIQUIDATOR_BALANCE)
         })
-        it.only("Method: permitAndCall then deposit", async function () {
+        it("Method: permitAndCall then deposit", async function () {
             const {token, papaya} = await baseSetup()
 
             await token.transfer(user_1.address, SIX_USDT)

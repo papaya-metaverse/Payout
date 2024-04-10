@@ -9,16 +9,15 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { SignedMath } from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import { Context } from "@openzeppelin/contracts/utils/Context.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { Multicall } from "@openzeppelin/contracts/utils/Multicall.sol";
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 import "../interfaces/IPapaya.sol";
 import "../library/UserLib.sol";
 
-import "hardhat/console.sol";
-
 // NOTE: Default settings for projectId are stored in projectAdmin[projectId].settings
-contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
+contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
     using SafeERC20 for IERC20;
     using UserLib for UserLib.User;
     using Address for address payable;
@@ -242,14 +241,7 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig {
         uint256 expectedNativeAssetCost = tx.gasprice * 10 ** (LIQUIDATION_MULTIPLIER) *
             (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[user].length());
 
-        console.log("ExpectedNativeAssetCost: ", expectedNativeAssetCost);
-
         uint256 executionPrice = expectedNativeAssetCost * uint256(coinPrice);
-
-        console.log("ExecutionPrice: ", executionPrice);
-
-        console.log("User`s balance: ");
-        console.logInt(int256(executionPrice) / tokenPrice);
 
         if (TOKEN_DECIMALS < COIN_DECIMALS) { 
             return int256(executionPrice) / tokenPrice / int256(10 ** (COIN_DECIMALS - TOKEN_DECIMALS));
