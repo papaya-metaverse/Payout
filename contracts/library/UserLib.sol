@@ -23,7 +23,7 @@ library UserLib {
     }
 
     modifier checkUint256(uint256 value) {
-        if(value > uint256(type(int256).max)) revert SafeCastOverflowedUintToInt(value); 
+        if(value > uint256(type(int256).max)) revert SafeCastOverflowedUintToInt(value);
         _;
     }
 

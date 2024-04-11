@@ -63,7 +63,7 @@ contract ATokenMock is IAToken, TokenCustomDecimalsMock {
     uint256 amount,
     uint256 index
   ) external override onlyLendingPool returns (bool) {
-    uint256 previousBalance = super.balanceOf(user); 
+    uint256 previousBalance = super.balanceOf(user);
     //NOTE Need to check this method more carefully
 
     uint256 amountScaled = amount;

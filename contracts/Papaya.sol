@@ -139,7 +139,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
 
     function allProjectOwners() external view returns(address[] memory) {
         return projectOwners;
-    } 
+    }
 
     function subscriptions(address from, address to) external view returns (bool, uint256 encodedRates) {
         return _subscriptions[from].tryGet(to);
@@ -153,7 +153,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
         for (uint256 i = 0; i < to.length; i++) {
             encodedRates[i] = user_subscriptions.get(to[i]);
         }
-    } 
+    }
 
     function deposit(uint256 amount, bool isPermit2) external {
         _deposit(TOKEN, _msgSender(), _msgSender(), amount, isPermit2);
@@ -235,18 +235,18 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
     }
 
     function _liquidationThreshold(address user) internal view returns (int256) {
-        (, int256 tokenPrice, , , ) = TOKEN_PRICE_FEED.latestRoundData(); 
-        (, int256 coinPrice, , , ) = COIN_PRICE_FEED.latestRoundData(); 
+        (, int256 tokenPrice, , , ) = TOKEN_PRICE_FEED.latestRoundData();
+        (, int256 coinPrice, , , ) = COIN_PRICE_FEED.latestRoundData();
 
         uint256 expectedNativeAssetCost = block.basefee * 10 ** (LIQUIDATION_MULTIPLIER) *
             (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[user].length());
 
         uint256 executionPrice = expectedNativeAssetCost * uint256(coinPrice);
 
-        if (TOKEN_DECIMALS < COIN_DECIMALS) { 
+        if (TOKEN_DECIMALS < COIN_DECIMALS) {
             return int256(executionPrice) / tokenPrice / int256(10 ** (COIN_DECIMALS - TOKEN_DECIMALS));
         } else {
-            return int256(executionPrice) / tokenPrice; 
+            return int256(executionPrice) / tokenPrice;
         }
     }
 
