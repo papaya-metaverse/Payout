@@ -54,10 +54,21 @@ module.exports = {
     etherscan: {
       apiKey:{
         polygonMumbai: `${process.env.POLYGONSCAN_API_KEY}` || '',
+        polygonAmoy: `${process.env.OKLINK_API_KEY}` || '',
         polygon: `${process.env.POLYGONSCAN_API_KEY}` || '',
         bsc: `${process.env.BSCSCAN_API_KEY}` || '',
         bscTestnet: `${process.env.BSCSCAN_API_KEY}` || ''
-      }
+      },
+      customChains: [
+        {
+            network: "polygonAmoy",
+            chainId: 80002,
+            urls: {
+              apiURL: "https://www.oklink.com/api/explorer/v1/contract/verify/async/api/polygonAmoy",
+              browserURL: "https://www.oklink.com/polygonAmoy"
+            },
+        }
+      ]
     },
     defaultNetwork: "hardhat",
     namedAccounts: {
@@ -71,10 +82,10 @@ module.exports = {
          * blockGasLimit settings for different chains
          * For BSC: https://bscscan.com/chart/gaslimit
          * : 140000000
-         * 
+         *
          * For Polygon: https://forum.polygon.technology/t/increasing-gas-limit-to-30m/1652
          * : 30000000
-         * 
+         *
          * For Ethereum: https://ycharts.com/indicators/ethereum_average_gas_limit
          * : 30000000
          */
@@ -91,6 +102,13 @@ module.exports = {
         url: `https://polygon-mumbai.g.alchemy.com/v2/${process.env.ALCHEMY_MUMBAI_KEY}`,
         accounts: {
           mnemonic: `${process.env.SEED_PHRASE_DEPLOYER}`,
+        }
+      },
+      polygonAmoy: {
+        chainId: 80002,
+        url: `https://rpc-amoy.polygon.technology/`,
+        accounts: {
+            mnemonic: `${process.env.SEED_PHRASE_DEPLOYER}`,
         }
       },
       polygon: {

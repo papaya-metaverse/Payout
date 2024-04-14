@@ -7,6 +7,10 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     console.log("network name: ", network.name);
     console.log("network id: ", await getChainId())
 
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
     const { deploy } = deployments;
     const { deployer } = await getNamedAccounts();
 
@@ -14,7 +18,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     const symbol = "TST_USDT"
     const totalSupply = ethers.parseEther("2850000000000")
     const TOKEN_DECIMALS = 6
-    
+
     const args = [
         name,
         symbol,
@@ -22,16 +26,18 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
         TOKEN_DECIMALS
     ]
 
-    const papaya = await deploy('TokenCustomDecimalsMock', {
+    const token = await deploy('TestTokenDecimals', {
         from: deployer,
         args
     })
 
-    console.log("Token deployed to: ", papaya.address)
+    console.log("Token deployed to: ", token.address)
+
+    await sleep(60000)
 
     if (await getChainId() !== '31337') {
         await hre.run(`verify:verify`, {
-            address: papaya.address,
+            address: token.address,
             constructorArguments: args
         })
     }

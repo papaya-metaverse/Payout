@@ -28,7 +28,6 @@ interface IPapaya {
     }
 
     function updateLiquidationMultiplier(uint256 multiplier) external;
-    function updateProtocolAdmin(address newAdmin) external;
     function rescueFunds(IERC20 token, uint256 amount) external;
 
     function claimProjectId() external;

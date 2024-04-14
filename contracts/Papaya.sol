@@ -39,8 +39,6 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
 
     uint256 public LIQUIDATION_MULTIPLIER;
 
-    address public protocolAdmin;
-
     uint256 public totalSupply;
     address[] public projectOwners;
     mapping(address account => UserLib.User) public users;
@@ -83,8 +81,6 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
         TOKEN_PRICE_FEED = AggregatorV3Interface(TOKEN_PRICE_FEED_);
         TOKEN = IERC20(TOKEN_);
         TOKEN_DECIMALS = TOKEN_DECIMALS_;
-
-        protocolAdmin = _msgSender();
     }
 
     function rescueFunds(IERC20 token, uint256 amount) external onlyOwner {
@@ -94,16 +90,12 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
             if (token == TOKEN && amount > TOKEN.balanceOf(address(this)) - totalSupply) {
                 revert UserLib.InsufficialBalance();
             }
-            token.safeTransfer(protocolAdmin, amount);
+            token.safeTransfer(owner(), amount);
         }
     }
 
     function updateLiquidationMultiplier(uint256 multiplier) external onlyOwner {
         LIQUIDATION_MULTIPLIER = multiplier;
-    }
-
-    function updateProtocolAdmin(address newAdmin) external onlyOwner {
-        protocolAdmin = newAdmin;
     }
 
     function claimProjectId() external {
