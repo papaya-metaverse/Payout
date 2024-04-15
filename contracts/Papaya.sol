@@ -255,7 +255,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
         users[projectOwners[projectId]].increaseIncomeRate(outgoingRate - incomeRate);
         _subscriptions[user].set(author, encodedRates);
 
-        emit Subscribed(user, author, encodedRates);
+        emit StreamCreated(user, author, encodedRates);
     }
 
     function _unsubscribeEffects(address user, address author, uint256 encodedRates) internal {
@@ -266,7 +266,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
         users[admin].decreaseIncomeRate(outgoingRate - incomeRate, _liquidationThreshold(admin));
         _subscriptions[user].remove(author);
 
-        emit Unsubscribed(user, author, encodedRates);
+        emit StreamRevoked(user, author, encodedRates);
     }
     function _update(address from, address to, uint256 amount) private {
         if (from == to || amount == 0) return;
