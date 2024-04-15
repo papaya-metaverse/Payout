@@ -53,22 +53,10 @@ module.exports = {
     // },
     etherscan: {
       apiKey:{
-        polygonMumbai: `${process.env.POLYGONSCAN_API_KEY}` || '',
-        polygonAmoy: `${process.env.OKLINK_API_KEY}` || '',
         polygon: `${process.env.POLYGONSCAN_API_KEY}` || '',
         bsc: `${process.env.BSCSCAN_API_KEY}` || '',
         bscTestnet: `${process.env.BSCSCAN_API_KEY}` || ''
       },
-      customChains: [
-        {
-            network: "polygonAmoy",
-            chainId: 80002,
-            urls: {
-              apiURL: "https://www.oklink.com/api/explorer/v1/contract/verify/async/api/polygonAmoy",
-              browserURL: "https://www.oklink.com/polygonAmoy"
-            },
-        }
-      ]
     },
     defaultNetwork: "hardhat",
     namedAccounts: {
@@ -95,20 +83,6 @@ module.exports = {
         mining:{
           auto: true,
           interval: 5000
-        }
-      },
-      mumbai: {
-        chainId: 80001,
-        url: `https://polygon-mumbai.g.alchemy.com/v2/${process.env.ALCHEMY_MUMBAI_KEY}`,
-        accounts: {
-          mnemonic: `${process.env.SEED_PHRASE_DEPLOYER}`,
-        }
-      },
-      polygonAmoy: {
-        chainId: 80002,
-        url: `https://rpc-amoy.polygon.technology/`,
-        accounts: {
-            mnemonic: `${process.env.SEED_PHRASE_DEPLOYER}`,
         }
       },
       polygon: {

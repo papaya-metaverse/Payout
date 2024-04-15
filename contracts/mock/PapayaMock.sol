@@ -10,6 +10,7 @@ import { SignedMath } from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import { Context } from "@openzeppelin/contracts/utils/Context.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { Multicall } from "@openzeppelin/contracts/utils/Multicall.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
@@ -36,8 +37,6 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall
 
     IERC20 public immutable TOKEN;
     uint8 public immutable TOKEN_DECIMALS;
-
-    uint256 public LIQUIDATION_MULTIPLIER;
 
     uint256 public totalSupply;
     address[] public projectOwners;
@@ -71,8 +70,7 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall
     constructor(
         address CHAIN_PRICE_FEED_,
         address TOKEN_PRICE_FEED_,
-        address TOKEN_,
-        uint8 TOKEN_DECIMALS_
+        address TOKEN_
     )
         Ownable(_msgSender())
         EIP712(type(PapayaMock).name, "1")
@@ -80,7 +78,19 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall
         COIN_PRICE_FEED = AggregatorV3Interface(CHAIN_PRICE_FEED_);
         TOKEN_PRICE_FEED = AggregatorV3Interface(TOKEN_PRICE_FEED_);
         TOKEN = IERC20(TOKEN_);
-        TOKEN_DECIMALS = TOKEN_DECIMALS_;
+        TOKEN_DECIMALS = IERC20Metadata(TOKEN_).decimals();
+    }
+
+    function name() external view returns (string memory) {
+        return string.concat("Streaming ", IERC20Metadata(address(TOKEN)).name());
+    }
+
+    function symbol() external view returns (string memory) {
+        return string.concat("pp", IERC20Metadata(address(TOKEN)).symbol());
+    }
+
+    function decimals() external view returns (uint8) {
+        return TOKEN_DECIMALS;
     }
 
     function rescueFunds(IERC20 token, uint256 amount) external onlyOwner {
@@ -92,10 +102,6 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall
             }
             token.safeTransfer(owner(), amount);
         }
-    }
-
-    function updateLiquidationMultiplier(uint256 multiplier) external onlyOwner {
-        LIQUIDATION_MULTIPLIER = multiplier;
     }
 
     function claimProjectId() external {
@@ -230,7 +236,7 @@ contract PapayaMock is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall
         (, int256 tokenPrice, , , ) = TOKEN_PRICE_FEED.latestRoundData();
         (, int256 coinPrice, , , ) = COIN_PRICE_FEED.latestRoundData();
 
-        uint256 expectedNativeAssetCost = tx.gasprice * 10 ** (LIQUIDATION_MULTIPLIER) *
+        uint256 expectedNativeAssetCost = tx.gasprice *
             (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[user].length());
 
         uint256 executionPrice = expectedNativeAssetCost * uint256(coinPrice);

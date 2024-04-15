@@ -23,7 +23,7 @@ async function deployToken() {
 async function deployNativePriceFeed() {
     const contract = await ethers.deployContract("NativePriceFeedMock")
 
-    return contract 
+    return contract
 }
 
 async function deployTokenPriceFeed() {
@@ -40,13 +40,12 @@ async function deployPapaya(
     const args = [
         nativePriceFeedAddr,
         tokenPriceFeedAddr,
-        tokenAddress,
-        TOKEN_DECIMALS
+        tokenAddress
     ]
 
     const contract = await ethers.deployContract("PapayaMock", args)
 
-    return contract 
+    return contract
 }
 
 async function baseSetup() {
@@ -74,13 +73,12 @@ async function deployAPapaya(
         nativePriceFeedAddr,
         tokenPriceFeedAddr,
         tokenAddress,
-        TOKEN_DECIMALS,
         lendingpool
     ]
 
     const contract = await ethers.deployContract("APapayaMock", args)
 
-    return contract 
+    return contract
 }
 
 async function deployAToken(
@@ -127,7 +125,7 @@ async function baseASetup() {
     const coinPriceFeed = await deployNativePriceFeed()
     const tokenPriceFeed = await deployTokenPriceFeed()
 
-    const lendingpool = await deployLendingPool(await token.getAddress())    
+    const lendingpool = await deployLendingPool(await token.getAddress())
     const aToken = await deployAToken(await lendingpool.getAddress(), await token.getAddress())
 
     await lendingpool.updateAToken(await token.getAddress(), await aToken.getAddress())

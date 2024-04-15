@@ -22,14 +22,12 @@ contract APapayaMock is PapayaMock {
         address CHAIN_PRICE_FEED_,
         address TOKEN_PRICE_FEED_,
         address TOKEN_,
-        uint8 TOKEN_DECIMALS_,
         ILendingPool LENDING_POOL_
     )
         PapayaMock(
             CHAIN_PRICE_FEED_,
             TOKEN_PRICE_FEED_,
-            TOKEN_,
-            TOKEN_DECIMALS_
+            TOKEN_
         )
     {
         LENDING_POOL = LENDING_POOL_;
