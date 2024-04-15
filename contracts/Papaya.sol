@@ -227,9 +227,9 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
             _unsubscribeEffects(account, author, encodedRates);
         }
         int256 balance = user.drainBalance(users[_msgSender()]);
-        emit Transfer(account, _msgSender(), uint256(SignedMath.max(int256(0), balance)));
+        emit Transfered(account, _msgSender(), uint256(SignedMath.max(int256(0), balance)));
 
-        emit Liquidate(account, _msgSender());
+        emit Liquidated(account, _msgSender());
     }
 
     function _liquidationThreshold(address user) internal view returns (int256) {
@@ -255,7 +255,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
         users[projectOwners[projectId]].increaseIncomeRate(outgoingRate - incomeRate);
         _subscriptions[user].set(author, encodedRates);
 
-        emit Subscribe(user, author, encodedRates);
+        emit Subscribed(user, author, encodedRates);
     }
 
     function _unsubscribeEffects(address user, address author, uint256 encodedRates) internal {
@@ -266,7 +266,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
         users[admin].decreaseIncomeRate(outgoingRate - incomeRate, _liquidationThreshold(admin));
         _subscriptions[user].remove(author);
 
-        emit Unsubscribe(user, author, encodedRates);
+        emit Unsubscribed(user, author, encodedRates);
     }
     function _update(address from, address to, uint256 amount) private {
         if (from == to || amount == 0) return;
@@ -285,7 +285,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
             users[to].increaseBalance(amount);
         }
 
-        emit Transfer(from, to, amount);
+        emit Transfered(from, to, amount);
     }
 
     function _encodeRates(uint96 incomeRate, uint96 outgoingRate, uint256 projectId) internal pure returns (uint256 encodedRates) {

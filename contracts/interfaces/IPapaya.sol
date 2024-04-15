@@ -6,10 +6,10 @@ import { IERC20 } from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol"
 interface IPapaya {
     event SetDefaultSettings(uint256 indexed projectId, uint16 protocolFee);
     event SetSettingsForUser(uint256 indexed projectId, address indexed user, uint16 protocolFee);
-    event Subscribe(address indexed user, address indexed author, uint256 indexed encodedRates);
-    event Unsubscribe(address indexed user, address indexed author, uint256 indexed encodedRates);
-    event Liquidate(address indexed user, address indexed liquidator);
-    event Transfer(address indexed _from, address indexed _to, uint256 _value);
+    event Subscribed(address indexed user, address indexed author, uint256 indexed encodedRates);
+    event Unsubscribed(address indexed user, address indexed author, uint256 indexed encodedRates);
+    event Liquidated(address indexed user, address indexed liquidator);
+    event Transfered(address indexed _from, address indexed _to, uint256 _value);
     event ProjectIdClaimed(uint256 projectId, address admin);
 
     error InvalidProjectId(uint256 projectId);
