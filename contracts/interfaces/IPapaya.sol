@@ -9,7 +9,7 @@ interface IPapaya {
     event StreamCreated(address indexed user, address indexed author, uint256 indexed encodedRates);
     event StreamRevoked(address indexed user, address indexed author, uint256 indexed encodedRates);
     event Liquidated(address indexed user, address indexed liquidator);
-    event Transfered(address indexed _from, address indexed _to, uint256 _value);
+    event Transfer(address indexed _from, address indexed _to, uint256 _value);
     event ProjectIdClaimed(uint256 projectId, address admin);
 
     error InvalidProjectId(uint256 projectId);

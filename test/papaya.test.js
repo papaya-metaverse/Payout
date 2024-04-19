@@ -1,7 +1,7 @@
 const hre = require('hardhat')
 const { ethers } = hre
 const { expect, time, getPermit, constants } = require('@1inch/solidity-utils')
-const { baseSetup } = require('./helpers/Deploy') 
+const { baseSetup, TOKEN_DECIMALS } = require('./helpers/Deploy')
 
 const NonceType = {
     Account: 0n,
@@ -36,25 +36,35 @@ function buildBySigTraits({
 
 async function timestamp() {
     let blockNumber = await ethers.provider.getBlockNumber()
-    let block = await ethers.provider.getBlock(blockNumber) 
+    let block = await ethers.provider.getBlock(blockNumber)
 
     return block.timestamp
 }
 
 describe('papaya test', function () {
+    const DECIMAL_SCALE = BigInt(Math.pow(10, 18 - TOKEN_DECIMALS))
+
     const TWO_DAY = 172_800n
     const FIVE_USDT = 5_000_000n
     const SIX_USDT = 6_000_000n
     const ELEVEN_USDT = FIVE_USDT + SIX_USDT
 
     const SUB_RATE = 58n
-    const AUTHOR_INCOME_RATE = 46n
+    const AUTHOR_INCOME_RATE = 464n
     const LIQUIDATOR_BALANCE = 977542n
 
-    const CHAIN_ID = 31337
+    const SCALED_FIVE_USDT = FIVE_USDT * DECIMAL_SCALE
+    const SCALED_SIX_USDT= SIX_USDT * DECIMAL_SCALE
+    const SCALED_ELEVEN_USDT = ELEVEN_USDT * DECIMAL_SCALE
 
-    const FIRST_PROJECTID = 0
-    
+    const SCALED_SUB_RATE = SUB_RATE * DECIMAL_SCALE
+    const SCALED_AUTHOR_INCOME_RATE = AUTHOR_INCOME_RATE * DECIMAL_SCALE / 10n
+    const SCALED_LIQUIDATOR_BALANCE = LIQUIDATOR_BALANCE * DECIMAL_SCALE
+
+    const CHAIN_ID = 31337n
+
+    const FIRST_PROJECTID = 0n
+
     const PROJECT_FEE = 2000n
 
     const settings = {
@@ -112,7 +122,7 @@ describe('papaya test', function () {
             await papaya.connect(user_1).deposit(SIX_USDT, false)
 
             expect(await token.balanceOf(user_1.address)).to.be.eq(0n)
-            expect(await papaya.balanceOf(user_1.address)).to.be.eq(SIX_USDT)
+            expect(await papaya.balanceOf(user_1.address)).to.be.eq(SCALED_SIX_USDT)
         })
         it("Method: withdraw", async function () {
             const {token, papaya} = await baseSetup()
@@ -122,9 +132,9 @@ describe('papaya test', function () {
 
             await papaya.connect(user_1).deposit(SIX_USDT, false)
 
-            expect(await papaya.balanceOf(user_1.address)).to.be.eq(SIX_USDT)
+            expect(await papaya.balanceOf(user_1.address)).to.be.eq(SCALED_SIX_USDT)
 
-            await papaya.connect(user_1).withdraw(SIX_USDT)
+            await papaya.connect(user_1).withdraw(SCALED_SIX_USDT)
 
             expect(await token.balanceOf(user_1.address)).to.be.eq(SIX_USDT)
         })
@@ -136,12 +146,12 @@ describe('papaya test', function () {
 
             await papaya.connect(user_1).deposit(SIX_USDT, false)
 
-            expect(await papaya.balanceOf(user_1.address)).to.be.eq(SIX_USDT)
-        
-            await papaya.connect(user_1).pay(user_2.address, SIX_USDT)
+            expect(await papaya.balanceOf(user_1.address)).to.be.eq(SCALED_SIX_USDT)
+
+            await papaya.connect(user_1).pay(user_2.address, SCALED_SIX_USDT)
 
             expect(await papaya.balanceOf(user_1.address)).to.be.eq(0n)
-            expect(await papaya.balanceOf(user_2.address)).to.be.eq(SIX_USDT)
+            expect(await papaya.balanceOf(user_2.address)).to.be.eq(SCALED_SIX_USDT)
         })
         it("Method: subscribe", async function () {
             const {token, papaya} = await baseSetup()
@@ -155,10 +165,10 @@ describe('papaya test', function () {
             await papaya.connect(admin).setSettingsForUser(user_1.address, settings, FIRST_PROJECTID)
             await papaya.connect(admin).setSettingsForUser(user_2.address, settings, FIRST_PROJECTID)
 
-            await papaya.connect(user_1).subscribe(user_2.address, SUB_RATE, FIRST_PROJECTID)
+            await papaya.connect(user_1).subscribe(user_2.address, SCALED_SUB_RATE, FIRST_PROJECTID)
 
-            expect((await papaya.users(user_1.address)).outgoingRate).to.be.eq(SUB_RATE)
-            expect((await papaya.users(user_2.address)).incomeRate).to.be.eq(AUTHOR_INCOME_RATE)
+            expect((await papaya.users(user_1.address)).outgoingRate).to.be.eq(SCALED_SUB_RATE)
+            expect((await papaya.users(user_2.address)).incomeRate).to.be.eq(SCALED_AUTHOR_INCOME_RATE)
         })
         it("Method: unsubscribe", async function () {
             const {token, papaya} = await baseSetup()
@@ -172,10 +182,10 @@ describe('papaya test', function () {
             await papaya.connect(admin).setSettingsForUser(user_1.address, settings, FIRST_PROJECTID)
             await papaya.connect(admin).setSettingsForUser(user_2.address, settings, FIRST_PROJECTID)
 
-            await papaya.connect(user_1).subscribe(user_2.address, SUB_RATE, FIRST_PROJECTID)
+            await papaya.connect(user_1).subscribe(user_2.address, SCALED_SUB_RATE, FIRST_PROJECTID)
 
-            expect((await papaya.users(user_1.address)).outgoingRate).to.be.eq(SUB_RATE)
-            expect((await papaya.users(user_2.address)).incomeRate).to.be.eq(AUTHOR_INCOME_RATE)
+            expect((await papaya.users(user_1.address)).outgoingRate).to.be.eq(SCALED_SUB_RATE)
+            expect((await papaya.users(user_2.address)).incomeRate).to.be.eq(SCALED_AUTHOR_INCOME_RATE)
 
             await papaya.connect(user_1).unsubscribe(user_2.address)
 
@@ -194,14 +204,14 @@ describe('papaya test', function () {
             await papaya.connect(admin).setSettingsForUser(user_1.address, settings, FIRST_PROJECTID)
             await papaya.connect(admin).setSettingsForUser(user_2.address, settings, FIRST_PROJECTID)
 
-            await papaya.connect(user_1).subscribe(user_2.address, SUB_RATE, FIRST_PROJECTID)
+            await papaya.connect(user_1).subscribe(user_2.address, SCALED_SUB_RATE, FIRST_PROJECTID)
 
             await time.increase(TWO_DAY)
 
             await papaya.liquidate(user_1.address)
 
             expect(await papaya.balanceOf(user_1.address)).to.be.eq(0n)
-            expect(await papaya.balanceOf(owner.address)).to.be.eq(LIQUIDATOR_BALANCE)
+            expect(await papaya.balanceOf(owner.address)).to.be.eq(SCALED_LIQUIDATOR_BALANCE)
         })
         it("Method: permitAndCall then deposit", async function () {
             const {token, papaya} = await baseSetup()
@@ -249,7 +259,7 @@ describe('papaya test', function () {
             }
 
             const signature = await user_1.signTypedData(
-                { name: 'PapayaMock', version: '1', chainId: CHAIN_ID, verifyingContract: await papaya.getAddress() },
+                { name: 'Papaya', version: '1', chainId: CHAIN_ID, verifyingContract: await papaya.getAddress() },
                 { SignedCall: [{ name: 'traits', type: 'uint256' }, { name: 'data', type: 'bytes' }] },
                 signedCall
             )
@@ -265,7 +275,7 @@ describe('papaya test', function () {
             )
 
             expect(await token.balanceOf(user_1.address)).to.be.eq(0n)
-            expect(await papaya.balanceOf(user_1.address)).to.be.eq(SIX_USDT)
+            expect(await papaya.balanceOf(user_1.address)).to.be.eq(SCALED_SIX_USDT)
         })
         it("Method: BySig then SponsoredCall then PermitAndCall then deposit", async function () {
             const {token, papaya} = await baseSetup()
@@ -280,7 +290,7 @@ describe('papaya test', function () {
                 await papaya.getAddress(),
                 SIX_USDT,
                 await timestamp() + 100
-            ) 
+            )
 
             const tokenPermit = ethers.solidityPacked(
                 ['address', 'bytes'],
@@ -296,7 +306,7 @@ describe('papaya test', function () {
             }
 
             const signature = await user_1.signTypedData(
-                { name: 'PapayaMock', version: '1', chainId: CHAIN_ID, verifyingContract: await papaya.getAddress() },
+                { name: 'Papaya', version: '1', chainId: CHAIN_ID, verifyingContract: await papaya.getAddress() },
                 { SignedCall: [{ name: 'traits', type: 'uint256' }, { name: 'data', type: 'bytes' }] },
                 sponsoredCall
             )
@@ -306,7 +316,7 @@ describe('papaya test', function () {
             )
 
             expect(await token.balanceOf(user_1.address)).to.be.eq(0n)
-            expect(await papaya.balanceOf(user_1.address)).to.be.eq(FIVE_USDT)
+            expect(await papaya.balanceOf(user_1.address)).to.be.eq(SCALED_SIX_USDT - (SIX_USDT - FIVE_USDT))
         })
     })
 })

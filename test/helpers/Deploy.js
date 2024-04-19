@@ -142,5 +142,6 @@ async function baseASetup() {
 
 module.exports = {
     baseSetup,
-    baseASetup
+    baseASetup,
+    TOKEN_DECIMALS
 }

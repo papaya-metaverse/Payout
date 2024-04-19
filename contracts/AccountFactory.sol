@@ -9,8 +9,11 @@ contract AccountFactory {
     event CreateAccount(address owner, uint256 salt, address account);
 
     function createAccount(address owner) public {
-        address account = address(new ProxyAccount{salt: bytes32(counter[owner])}(owner));
+        uint256 salt = counter[owner];
+        counter[owner] = salt + 1;
 
-        emit CreateAccount(owner, counter[owner]++, account);
+        address account = address(new ProxyAccount{salt: bytes32(salt)}(owner));
+
+        emit CreateAccount(owner, salt, account);
     }
 }

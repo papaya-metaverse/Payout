@@ -29,14 +29,13 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
 
     uint256 public constant APPROX_LIQUIDATE_GAS = 140000;
     uint256 public constant APPROX_SUBSCRIPTION_GAS = 10000;
-    uint8 public constant COIN_DECIMALS = 18;
     uint8 public constant SUBSCRIPTION_THRESHOLD = 100;
 
     AggregatorV3Interface public immutable COIN_PRICE_FEED;
     AggregatorV3Interface public immutable TOKEN_PRICE_FEED;
 
     IERC20 public immutable TOKEN;
-    uint8 public immutable TOKEN_DECIMALS;
+    uint256 public immutable DECIMALS_SCALE;
 
     uint256 public totalSupply;
     address[] public projectOwners;
@@ -78,7 +77,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
         COIN_PRICE_FEED = AggregatorV3Interface(CHAIN_PRICE_FEED_);
         TOKEN_PRICE_FEED = AggregatorV3Interface(TOKEN_PRICE_FEED_);
         TOKEN = IERC20(TOKEN_);
-        TOKEN_DECIMALS = IERC20Metadata(TOKEN_).decimals();
+        DECIMALS_SCALE = 10 ** (18 - IERC20Metadata(TOKEN_).decimals());
     }
 
     function name() external view returns (string memory) {
@@ -89,8 +88,8 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
         return string.concat("pp", IERC20Metadata(address(TOKEN)).symbol());
     }
 
-    function decimals() external view returns (uint8) {
-        return TOKEN_DECIMALS;
+    function decimals() external pure returns (uint8) {
+        return 18;
     }
 
     function rescueFunds(IERC20 token, uint256 amount) external onlyOwner {
@@ -162,7 +161,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
     }
 
     function _deposit(IERC20 token, address from, address to, uint256 amount, bool usePermit2) internal virtual {
-        _update(address(0), to, amount);
+        _update(address(0), to, amount * DECIMALS_SCALE);
 
         if(usePermit2) {
             token.safeTransferFromPermit2(from, address(this), amount);
@@ -180,8 +179,9 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
     }
 
     function _withdraw(IERC20 token, address from, address to, uint256 amount) internal {
-        _update(from, address(0), amount);
-        token.safeTransfer(to, amount);
+        //Erasing non significant decimals
+        _update(from, address(0), amount / DECIMALS_SCALE * DECIMALS_SCALE);
+        token.safeTransfer(to, amount / DECIMALS_SCALE);
     }
 
     function pay(address receiver, uint256 amount) external {
@@ -227,7 +227,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
             _unsubscribeEffects(account, author, encodedRates);
         }
         int256 balance = user.drainBalance(users[_msgSender()]);
-        emit Transfered(account, _msgSender(), uint256(SignedMath.max(int256(0), balance)));
+        emit Transfer(account, _msgSender(), uint256(SignedMath.max(int256(0), balance)));
 
         emit Liquidated(account, _msgSender());
     }
@@ -236,16 +236,12 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
         (, int256 tokenPrice, , , ) = TOKEN_PRICE_FEED.latestRoundData();
         (, int256 coinPrice, , , ) = COIN_PRICE_FEED.latestRoundData();
 
-        uint256 expectedNativeAssetCost = block.basefee *
+        uint256 expectedNativeAssetCost = _gasPrice() *
             (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[user].length());
 
         uint256 executionPrice = expectedNativeAssetCost * uint256(coinPrice);
 
-        if (TOKEN_DECIMALS < COIN_DECIMALS) {
-            return int256(executionPrice) / tokenPrice / int256(10 ** (COIN_DECIMALS - TOKEN_DECIMALS));
-        } else {
-            return int256(executionPrice) / tokenPrice;
-        }
+        return int256(executionPrice) / tokenPrice;
     }
 
     function _subscribeEffects(address user, address author, uint96 incomeRate, uint96 outgoingRate, uint256 projectId) internal {
@@ -285,7 +281,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
             users[to].increaseBalance(amount);
         }
 
-        emit Transfered(from, to, amount);
+        emit Transfer(from, to, amount);
     }
 
     function _encodeRates(uint96 incomeRate, uint96 outgoingRate, uint256 projectId) internal pure returns (uint256 encodedRates) {
@@ -307,5 +303,9 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
 
     function _msgSender() internal view override(Context, BySig) returns (address) {
         return super._msgSender();
+    }
+
+    function _gasPrice() internal view virtual returns (uint256) {
+        return block.basefee;
     }
 }
