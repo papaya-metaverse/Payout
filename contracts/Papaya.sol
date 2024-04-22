@@ -264,6 +264,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
 
         emit StreamRevoked(user, author, encodedRates);
     }
+
     function _update(address from, address to, uint256 amount) private {
         if (from == to || amount == 0) return;
 

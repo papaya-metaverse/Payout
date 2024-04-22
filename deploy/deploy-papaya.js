@@ -13,13 +13,11 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     const chainPriceFeed = process.env.COIN_PRICE_FEED
     const tokenPriceFeed = process.env.TOKEN_PRICE_FEED
     const token = process.env.TOKEN
-    const tokenDecimals = process.env.TOKEN_DECIMALS
 
     const args = [
         chainPriceFeed,
         tokenPriceFeed,
-        token,
-        tokenDecimals
+        token
     ]
 
     const papaya = await deploy('Papaya', {
