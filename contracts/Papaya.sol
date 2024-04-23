@@ -96,7 +96,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
         if (address(token) == address(0)) {
             payable(_msgSender()).sendValue(amount);
         } else {
-            if (token == TOKEN && amount > TOKEN.balanceOf(address(this)) - totalSupply) {
+            if (token == TOKEN && amount > TOKEN.balanceOf(address(this)) - totalSupply / DECIMALS_SCALE) {
                 revert UserLib.InsufficialBalance();
             }
             token.safeTransfer(owner(), amount);
