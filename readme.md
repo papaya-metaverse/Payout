@@ -1,6 +1,6 @@
 <div align="center">
-    <img src="https://github.com/papaya-metaverse/payout/blob/main/.github/papaya-logo-white.svg#gh-light-mode-only">
-    <img src="https://github.com/papaya-metaverse/payout/blob/main/.github/papaya-logo-black.svg#gh-dark-mode-only">
+    <img src="https://github.com/papaya-metaverse/payout/blob/main/.github/papaya-logo-white.png#gh-light-mode-only">
+    <img src="https://github.com/papaya-metaverse/payout/blob/main/.github/papaya-logo-black.png#gh-dark-mode-only">
 </div>
 
 # Usage
