@@ -147,7 +147,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
         to = user_subscriptions.keys();
         encodedRates = new uint256[](to.length);
 
-        for (uint256 i = 0; i < to.length; i++) {
+        for (uint256 i; i < to.length; i++) {
             encodedRates[i] = user_subscriptions.get(to[i]);
         }
     }
