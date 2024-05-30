@@ -90,12 +90,11 @@ library UserLib {
     }
 
     function isLiquidatable(User storage user, int256 threshold) internal returns (bool) {
-        _syncBalance(user);
         return _isLiquidatable(user, threshold, LIQUIDATION_TIME);
     }
 
     function _isLiquidatable(User storage user, int256 threshold, uint256 afterDelay) private view returns (bool) {
-        return user.incomeRate - user.outgoingRate < 0 && 
-            user.balance - int256(afterDelay) * user.outgoingRate < threshold;
+        return user.outgoingRate > user.incomeRate &&
+            balanceOf(user) - int256(afterDelay) * user.outgoingRate < threshold;
     }
 }
