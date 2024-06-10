@@ -89,7 +89,7 @@ library UserLib {
         return _isLiquidatable(user, threshold, SAFE_LIQUIDATION_TIME);
     }
 
-    function isLiquidatable(User storage user, int256 threshold) internal returns (bool) {
+    function isLiquidatable(User storage user, int256 threshold) internal view returns (bool) {
         return _isLiquidatable(user, threshold, LIQUIDATION_TIME);
     }
 
