@@ -94,7 +94,7 @@ library UserLib {
     }
 
     function _isLiquidatable(User storage user, int256 threshold, uint256 afterDelay) private view returns (bool) {
-        int256 currentRate = int256(user.incomeRate) - int256(user.outgoingRate);
-        return currentRate < 0 && balanceOf(user, afterDelay) < threshold;
+        return user.outgoingRate > user.incomeRate &&
+            balanceOf(user) - int256(afterDelay) * user.outgoingRate < threshold;
     }
 }
