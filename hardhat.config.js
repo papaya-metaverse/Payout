@@ -58,6 +58,11 @@ module.exports = {
         bscTestnet: `${process.env.BSCSCAN_API_KEY}` || ''
       },
     },
+    sourcify: {
+        enabled: true,
+        apiUrl: "https://sourcify.dev/server",
+        browserUrl: "https://repo.sourcify.dev",
+    },
     defaultNetwork: "hardhat",
     namedAccounts: {
       deployer: {
@@ -88,63 +93,63 @@ module.exports = {
       polygon: {
         chainId: 137,
         url: `https://polygon-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_POLYGON_KEY}`,
-        accounts: [`${process.env.DEPLOYER_PRIVATE_KEY}`],
+        accounts: process.env.DEPLOYER_PRIVATE_KEY !== undefined ? [`${process.env.DEPLOYER_PRIVATE_KEY}`] : ['0000000000000000000000000000000000000000000000000000000000000001'],
       },
       bsc: {
         chainId: 56,
         url: `https://bsc-dataseed.bnbchain.org/`,
-        accounts: [`${process.env.DEPLOYER_PRIVATE_KEY}`],
+        accounts: process.env.DEPLOYER_PRIVATE_KEY !== undefined ? [`${process.env.DEPLOYER_PRIVATE_KEY}`] : ['0000000000000000000000000000000000000000000000000000000000000001'],
       },
       bscTestnet: {
         chainId: 97,
         url: `https://data-seed-prebsc-1-s1.bnbchain.org:8545`,
-        accounts: [`${process.env.DEPLOYER_PRIVATE_KEY}`],
+        accounts: process.env.DEPLOYER_PRIVATE_KEY !== undefined ? [`${process.env.DEPLOYER_PRIVATE_KEY}`] : ['0000000000000000000000000000000000000000000000000000000000000001'],
         gasPrice: 10000000000
       },
       avalanche: {
         chainId: 43114,
         url: `https://avalanche.drpc.org`,
-        accounts: [`${process.env.DEPLOYER_PRIVATE_KEY}`]
+        accounts: process.env.DEPLOYER_PRIVATE_KEY !== undefined ? [`${process.env.DEPLOYER_PRIVATE_KEY}`] : ['0000000000000000000000000000000000000000000000000000000000000001'],
       },
       avalancheFuji: { //Testnet
         chainId: 43113,
         url: `https://avalanche-fuji-c-chain-rpc.publicnode.com`,
-        accounts: [`${process.env.DEPLOYER_PRIVATE_KEY}`]
+        accounts: process.env.DEPLOYER_PRIVATE_KEY !== undefined ? [`${process.env.DEPLOYER_PRIVATE_KEY}`] : ['0000000000000000000000000000000000000000000000000000000000000001'],
       },
       arbitrumOne: {
         chainId: 42161,
         url: `https://arb1.arbitrum.io/rpc`,
-        accounts: [`${process.env.DEPLOYER_PRIVATE_KEY}`]
+        accounts: process.env.DEPLOYER_PRIVATE_KEY !== undefined ? [`${process.env.DEPLOYER_PRIVATE_KEY}`] : ['0000000000000000000000000000000000000000000000000000000000000001'],
       },
       arbitrumNova: {
         chainId: 42170,
         url: `https://nova.arbitrum.io/rpc`,
-        accounts: [`${process.env.DEPLOYER_PRIVATE_KEY}`]
+        accounts: process.env.DEPLOYER_PRIVATE_KEY !== undefined ? [`${process.env.DEPLOYER_PRIVATE_KEY}`] : ['0000000000000000000000000000000000000000000000000000000000000001'],
       },
       arbitrumSepolia: { //Testnet
         chainId: 421614,
         url: `https://sepolia-rollup.arbitrum.io/rpc`,
-        accounts: [`${process.env.DEPLOYER_PRIVATE_KEY}`]
+        accounts: process.env.DEPLOYER_PRIVATE_KEY !== undefined ? [`${process.env.DEPLOYER_PRIVATE_KEY}`] : ['0000000000000000000000000000000000000000000000000000000000000001'],
       },
       base: {
         chainId: 8453,
         url: `https://base-pokt.nodies.app`,
-        accounts: [`${process.env.DEPLOYER_PRIVATE_KEY}`]
+        accounts: process.env.DEPLOYER_PRIVATE_KEY !== undefined ? [`${process.env.DEPLOYER_PRIVATE_KEY}`] : ['0000000000000000000000000000000000000000000000000000000000000001'],
       },
       baseSepolia: { //Testnet
         chainId: 84532 ,
         url: `https://base-sepolia-rpc.publicnode.com`,
-        accounts: [`${process.env.DEPLOYER_PRIVATE_KEY}`]
+        accounts: process.env.DEPLOYER_PRIVATE_KEY !== undefined ? [`${process.env.DEPLOYER_PRIVATE_KEY}`] : ['0000000000000000000000000000000000000000000000000000000000000001'],
       },
       scroll: {
         chainId: 534352,
         url: `https://1rpc.io/scroll`,
-        accounts: [`${process.env.DEPLOYER_PRIVATE_KEY}`]
+        accounts: process.env.DEPLOYER_PRIVATE_KEY !== undefined ? [`${process.env.DEPLOYER_PRIVATE_KEY}`] : ['0000000000000000000000000000000000000000000000000000000000000001'],
       },
       scrollSepolia: { //Testnet
         chainId: 534351,
         url: `https://scroll-sepolia.drpc.org`,
-        accounts: [`${process.env.DEPLOYER_PRIVATE_KEY}`]
+        accounts: process.env.DEPLOYER_PRIVATE_KEY !== undefined ? [`${process.env.DEPLOYER_PRIVATE_KEY}`] : ['0000000000000000000000000000000000000000000000000000000000000001'],
       }
     },
 };
