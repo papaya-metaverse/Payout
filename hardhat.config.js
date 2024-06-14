@@ -55,8 +55,34 @@ module.exports = {
       apiKey:{
         polygon: `${process.env.POLYGONSCAN_API_KEY}` || '',
         bsc: `${process.env.BSCSCAN_API_KEY}` || '',
-        bscTestnet: `${process.env.BSCSCAN_API_KEY}` || ''
-      },
+        bscTestnet: `${process.env.BSCSCAN_API_KEY}` || '',
+        avalancheFujiTestnet: `${process.env.SNOWTRACE_API_KEY}` || '',
+        baseSepolia: `${process.env.BASE_API_KEY}` || '',
+        scrollSepolia: `${process.env.SCROLL_API_KEY}` || '',
+        arbitrumNova: `${process.env.ARBITRUM_API_KEY}` || '',
+        arbitrumOne: `${process.env.ARBITRUM_API_KEY}` || '',
+        arbitrumSepolia: `${process.env.ARBITRUM_API_KEY}` || '',
+        scrollSepolia: `${process.env.SCROLL_API_KEY}` || '',
+        scroll: `${process.env.SCROLL_API_KEY}` || ''
+    },
+      customChains: [
+            {
+                network: "scrollSepolia",
+                chainId: 534351,
+                urls: {
+                    apiURL: "https://api-sepolia.scrollscan.com/api",
+                    browserURL: "https://sepolia.scrollscan.com"
+                },
+            },
+            {
+                network: "scroll",
+                chainId: 534352,
+                urls: {
+                    apiURL: "https://api.scrollscan.com/api",
+                    browserURL: "https://scrollscan.com"
+                }
+            }
+        ]
     },
     sourcify: {
         enabled: true,
