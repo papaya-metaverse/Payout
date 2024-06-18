@@ -12,7 +12,7 @@ if(process.env.TEST) {
 
 module.exports = {
     tracer: {
-        // enableAllOpcodes: true,
+        // enableAllOpcodes: true
     },
     solidity: {
       compilers: [
@@ -53,17 +53,19 @@ module.exports = {
     // },
     etherscan: {
       apiKey:{
+        mainnet: `${process.env.ETHEREUM_API_KEY}` || '',
         polygon: `${process.env.POLYGONSCAN_API_KEY}` || '',
         bsc: `${process.env.BSCSCAN_API_KEY}` || '',
         bscTestnet: `${process.env.BSCSCAN_API_KEY}` || '',
         avalancheFujiTestnet: `${process.env.SNOWTRACE_API_KEY}` || '',
+        avalanche: `${process.env.SNOWTRACE_API_KEY}` || '',
         baseSepolia: `${process.env.BASE_API_KEY}` || '',
+        base: `${process.env.BASE_API_KEY}` || '',
         scrollSepolia: `${process.env.SCROLL_API_KEY}` || '',
+        scroll: `${process.env.SCROLL_API_KEY}` || '',
         arbitrumNova: `${process.env.ARBITRUM_API_KEY}` || '',
         arbitrumOne: `${process.env.ARBITRUM_API_KEY}` || '',
         arbitrumSepolia: `${process.env.ARBITRUM_API_KEY}` || '',
-        scrollSepolia: `${process.env.SCROLL_API_KEY}` || '',
-        scroll: `${process.env.SCROLL_API_KEY}` || ''
     },
       customChains: [
             {
@@ -175,6 +177,11 @@ module.exports = {
       scrollSepolia: { //Testnet
         chainId: 534351,
         url: `https://scroll-sepolia.drpc.org`,
+        accounts: process.env.DEPLOYER_PRIVATE_KEY !== undefined ? [`${process.env.DEPLOYER_PRIVATE_KEY}`] : ['0000000000000000000000000000000000000000000000000000000000000001'],
+      },
+      ethereum: {
+        chainId: 1,
+        url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_ETHEREUM_KEY}`,
         accounts: process.env.DEPLOYER_PRIVATE_KEY !== undefined ? [`${process.env.DEPLOYER_PRIVATE_KEY}`] : ['0000000000000000000000000000000000000000000000000000000000000001'],
       }
     },
