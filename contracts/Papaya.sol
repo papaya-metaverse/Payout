@@ -217,27 +217,30 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
         _unsubscribeEffects(_msgSender(), author, encodedRates);
     }
 
-    function liquidate(address account) external onlyNotSender(account) {
+    function liquidate(address account, address[] calldata authors) external onlyNotSender(account) {
         UserLib.User storage user = users[account];
-        if (!user.isLiquidatable(_liquidationThreshold(account))) revert NotLiquidatable();
+        if (!user.isLiquidatable(_liquidationThreshold(_subscriptions[account].length()))) revert NotLiquidatable();
 
         EnumerableMap.AddressToUintMap storage user_subscriptions = _subscriptions[account];
-        for (uint256 i = user_subscriptions.length(); i > 0; i--) {
-            (address author, uint256 encodedRates) = user_subscriptions.at(i - 1);
-            _unsubscribeEffects(account, author, encodedRates);
+        for (uint256 i; i < authors.length; i++) {
+            uint256 encodedRates = user_subscriptions.get(authors[i]);
+            _unsubscribeEffects(account, authors[i], encodedRates);
         }
-        int256 balance = user.drainBalance(users[_msgSender()]);
-        emit Transfer(account, _msgSender(), uint256(SignedMath.max(int256(0), balance)));
 
+        if (!user.isLiquidatable(_liquidationThreshold(_subscriptions[account].length()))) revert NotLegal();
+
+        int256 balance = user.drainBalance(users[_msgSender()], _liquidationThreshold(authors.length));
+
+        emit Transfer(account, _msgSender(), uint256(SignedMath.max(int256(0), balance)));
         emit Liquidated(account, _msgSender());
     }
 
-    function _liquidationThreshold(address user) internal view returns (int256) {
+    function _liquidationThreshold(uint256 subscriptionAmount) internal view returns (int256) {
         (, int256 tokenPrice, , , ) = TOKEN_PRICE_FEED.latestRoundData();
         (, int256 coinPrice, , , ) = COIN_PRICE_FEED.latestRoundData();
 
         uint256 expectedNativeAssetCost = _gasPrice() *
-            (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * _subscriptions[user].length());
+            (APPROX_LIQUIDATE_GAS + APPROX_SUBSCRIPTION_GAS * subscriptionAmount);
 
         uint256 executionPrice = expectedNativeAssetCost * uint256(coinPrice);
 
@@ -246,7 +249,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
 
     function _subscribeEffects(address user, address author, uint96 incomeRate, uint96 outgoingRate, uint256 projectId) internal {
         uint256 encodedRates = _encodeRates(incomeRate, outgoingRate, projectId);
-        users[user].increaseOutgoingRate(outgoingRate, _liquidationThreshold(user));
+        users[user].increaseOutgoingRate(outgoingRate, _liquidationThreshold(_subscriptions[user].length()));
         users[author].increaseIncomeRate(incomeRate);
         users[projectOwners[projectId]].increaseIncomeRate(outgoingRate - incomeRate);
         _subscriptions[user].set(author, encodedRates);
@@ -258,8 +261,8 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
         (uint96 incomeRate, uint96 outgoingRate, uint256 projectId) = _decodeRates(encodedRates);
         address admin = projectOwners[projectId];
         users[user].decreaseOutgoingRate(outgoingRate);
-        users[author].decreaseIncomeRate(incomeRate, _liquidationThreshold(author));
-        users[admin].decreaseIncomeRate(outgoingRate - incomeRate, _liquidationThreshold(admin));
+        users[author].decreaseIncomeRate(incomeRate, _liquidationThreshold(_subscriptions[author].length()));
+        users[admin].decreaseIncomeRate(outgoingRate - incomeRate, _liquidationThreshold(_subscriptions[admin].length()));
         _subscriptions[user].remove(author);
 
         emit StreamRevoked(user, author, encodedRates);
@@ -272,7 +275,7 @@ contract Papaya is IPapaya, EIP712, Ownable, PermitAndCall, BySig, Multicall {
             totalSupply += amount;
         }
         else {
-            users[from].decreaseBalance(amount, _liquidationThreshold(from));
+            users[from].decreaseBalance(amount, _liquidationThreshold(_subscriptions[from].length()));
         }
 
         if (to == address(0)) {
