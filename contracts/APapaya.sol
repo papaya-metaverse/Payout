@@ -22,12 +22,14 @@ contract APapaya is Papaya {
         address CHAIN_PRICE_FEED_,
         address TOKEN_PRICE_FEED_,
         address TOKEN_,
+        IStream streamNFT_,
         ILendingPool LENDING_POOL_
     )
         Papaya(
             CHAIN_PRICE_FEED_,
             TOKEN_PRICE_FEED_,
-            TOKEN_
+            TOKEN_,
+            streamNFT_
         )
     {
         LENDING_POOL = LENDING_POOL_;

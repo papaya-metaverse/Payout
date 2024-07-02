@@ -79,10 +79,10 @@ library UserLib {
         if (isSafeLiquidatable(user, threshold)) revert ReduceTheAmount();
     }
 
-    function drainBalance(User storage user, User storage liquidator) internal returns(int256 balance) {
-        balance = user.balance;
-        liquidator.balance += balance;
-        user.balance = 0;
+    function drainBalance(User storage user, User storage liquidator, int256 amount) internal returns(int256 balance) {
+        liquidator.balance += amount;
+        user.balance >= amount ? user.balance -= amount : user.balance = 0;
+        return amount;
     }
 
     function isSafeLiquidatable(User storage user, int256 threshold) internal view returns (bool) {
