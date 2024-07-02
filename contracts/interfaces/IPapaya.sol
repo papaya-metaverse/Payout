@@ -51,5 +51,5 @@ interface IPapaya {
 
     function subscribe(address author, uint96 subscriptionRate, uint256 projectId) external;
     function unsubscribe(address author) external;
-    function liquidate(address account) external;
+    function liquidate(address account, address[] calldata authors) external;
 }
